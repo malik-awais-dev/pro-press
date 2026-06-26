@@ -49,7 +49,7 @@ exports.handler = async (event) => {
     prompt += '{"alt": "the alt text here", "title": "a slightly longer title attribute suggestion", "caption": "an optional 1-sentence caption for social media or blog use"}';
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
