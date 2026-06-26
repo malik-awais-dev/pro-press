@@ -132,7 +132,12 @@ function rebuildTable() {
 
     let acts = '';
     if (e.status === 'done' && e.blob) {
-      acts = `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button><button class="btn-icon" onclick="event.stopPropagation();openPreview(${e.id})" title="Preview"><span class="mi">visibility</span></button>`;
+      acts += `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button>`;
+      acts += `<button class="btn-icon" onclick="event.stopPropagation();openPreview(${e.id})" title="Preview"><span class="mi">visibility</span></button>`;
+    }
+    if (e.status !== 'converting') {
+      const altBtnId = 'altBtn-' + e.id;
+      acts += `<button class="btn btn-secondary btn-sm alt-gen-btn" id="${altBtnId}" onclick="event.stopPropagation();genAlt(${e.id})" title="Generate Alt Text"><span class="mi" style="font-size:15px">image_search</span> Alt</button>`;
     }
 
     card.innerHTML = `
@@ -410,6 +415,159 @@ $('btnCopyLast').addEventListener('click', async () => {
   } catch (e) { log('Clipboard failed — use Chrome or Edge', 'err'); }
 });
 
+
+// ── Alt Text ──
+
+let altEntryId = null;
+let altBusy = false;
+
+const altToast = document.createElement('div');
+altToast.className = 'alt-toast';
+altToast.textContent = 'Copied!';
+document.body.appendChild(altToast);
+
+function showAltToast(msg) {
+  altToast.textContent = msg || 'Copied!';
+  altToast.classList.add('show');
+  setTimeout(() => altToast.classList.remove('show'), 1400);
+}
+
+function copyAlt(id) {
+  const el = $(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => showAltToast('Copied!'));
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function resizeForAlt(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const max = 1024;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) {
+        if (w > h) { h = Math.round(h * max / w); w = max; }
+        else { w = Math.round(w * max / h); h = max; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      const dataUrl = c.toDataURL('image/jpeg', 0.85);
+      resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+async function genAlt(id) {
+  if (altBusy) return;
+  const e = state.files.find(x => x.id === id);
+  if (!e) return;
+  altEntryId = id;
+  altBusy = true;
+
+  const btn = $('altBtn-' + id);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="mi" style="font-size:15px;animation:spin 0.8s linear infinite">sync</span> Alt';
+  }
+
+  $('altCard').style.display = 'block';
+  $('altLoading').style.display = 'flex';
+  $('altResults').style.display = 'none';
+  $('altFileName').textContent = e.file.name;
+  setTimeout(() => $('altCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+  const resized = await resizeForAlt(e.file);
+  if (!resized) {
+    altBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="mi" style="font-size:15px">image_search</span> Alt'; }
+    $('altLoading').style.display = 'none';
+    $('altResults').style.display = 'block';
+    $('altResults').innerHTML = '<div class="alt-error">Could not read image</div>';
+    return;
+  }
+
+  const style = $('altStyle') ? $('altStyle').value : 'concise';
+
+  try {
+    const res = await fetch('/.netlify/functions/generate-alt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: resized.base64, mediaType: resized.mediaType, style, context: '' }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Something went wrong. Please try again.' }));
+      throw new Error(err.error || 'Something went wrong');
+    }
+    const data = await res.json();
+    showAltResult(data);
+    log('Alt text generated for ' + e.file.name, 'ok');
+  } catch (err) {
+    $('altLoading').style.display = 'none';
+    $('altResults').style.display = 'block';
+    $('altResults').innerHTML = `<div class="alt-error">${escHtml(err.message)}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button class="btn btn-secondary btn-sm" onclick="genAlt(${id})"><span class="mi" style="font-size:14px">refresh</span> Retry</button>
+      </div>`;
+    log('Alt text error: ' + err.message, 'err');
+  } finally {
+    altBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="mi" style="font-size:15px">image_search</span> Alt'; }
+  }
+}
+
+function showAltResult(data) {
+  $('altLoading').style.display = 'none';
+  $('altResults').style.display = 'block';
+
+  const alt = data.alt || '';
+  const title = data.title || '';
+  const chars = alt.length;
+  const charColor = chars > 125 ? 'var(--secondary)' : 'var(--tertiary)';
+
+  $('altResults').innerHTML = `
+    <div class="alt-field">
+      <div class="alt-field-top">
+        <span class="alt-label">Alt Text</span>
+        <button class="btn btn-secondary btn-sm" onclick="copyAlt('altVal')"><span class="mi" style="font-size:14px">content_copy</span> Copy</button>
+      </div>
+      <div class="alt-val" id="altVal">${escHtml(alt)}</div>
+      <div class="alt-chars"><span style="color:${charColor}">${chars} chars</span> · under 125 recommended</div>
+    </div>
+    <div class="alt-field">
+      <div class="alt-field-top">
+        <span class="alt-label">Title</span>
+        <button class="btn btn-secondary btn-sm" onclick="copyAlt('titleVal')"><span class="mi" style="font-size:14px">content_copy</span> Copy</button>
+      </div>
+      <div class="alt-val" id="titleVal">${escHtml(title)}</div>
+    </div>
+    <div class="alt-field">
+      <div class="alt-field-top">
+        <span class="alt-label">HTML</span>
+        <button class="btn btn-secondary btn-sm" onclick="copyAlt('htmlVal')"><span class="mi" style="font-size:14px">content_copy</span> Copy</button>
+      </div>
+      <pre class="alt-code" id="htmlVal">&lt;img src="image.jpg" alt="${escHtml(alt)}" title="${escHtml(title)}" /&gt;</pre>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+      <button class="btn btn-secondary btn-sm" onclick="genAlt(${altEntryId})"><span class="mi" style="font-size:14px">refresh</span> Regenerate</button>
+    </div>`;
+}
+
+$('btnCloseAlt').addEventListener('click', () => {
+  $('altCard').style.display = 'none';
+});
 
 // ── Init ──
 log('Ready — drop images above to get started', 'info');

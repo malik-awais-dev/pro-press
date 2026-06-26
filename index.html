@@ -252,6 +252,35 @@
     <div class="prev-footer" id="prevFooter"></div>
   </section>
 
+  <!-- Alt Text Result -->
+  <section class="glass alt-card" id="altCard" style="display:none" aria-label="Generated alt text">
+    <div class="alt-head">
+      <div class="alt-head-title">
+        <span class="mi" style="font-size:18px">image_search</span>
+        Alt Text — <span id="altFileName"></span>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btnCloseAlt" aria-label="Close alt text panel"><span class="mi" style="font-size:14px">close</span> Close</button>
+    </div>
+    <div class="alt-body" id="altBody">
+      <div class="alt-options">
+        <div>
+          <span class="setting-label">Style</span>
+          <select id="altStyle" style="margin-top:6px" aria-label="Alt text style">
+            <option value="concise">Concise</option>
+            <option value="detailed">Detailed</option>
+            <option value="seo">SEO-Focused</option>
+            <option value="ecommerce">E-Commerce</option>
+          </select>
+        </div>
+      </div>
+      <div class="alt-loading" id="altLoading">
+        <div class="alt-spinner"></div>
+        <span>Analyzing image…</span>
+      </div>
+      <div id="altResults" style="display:none"></div>
+    </div>
+  </section>
+
   <!-- Activity Log -->
   <section class="glass log-card" aria-label="Activity log">
     <div class="log-head">
