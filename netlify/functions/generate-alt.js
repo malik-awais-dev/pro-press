@@ -20,16 +20,13 @@ exports.handler = async (event) => {
       body: JSON.stringify({ mimeType: mediaType }),
     });
     if (!signRes.ok) throw new Error('Tailwind sign URL failed: ' + await signRes.text());
-    const signData = await signRes.json();
-    if (!signData) throw new Error('Empty response from Tailwind sign URL');
-    // Return raw response so we can see the actual field names
-    return { statusCode: 200, headers, body: JSON.stringify({ debug: signData }) };
+    const { signedUrl, cdnUrl } = await signRes.json();
 
     // Step 2: PUT image to S3
     const imageBuffer = Buffer.from(image, 'base64');
-    const s3Res = await fetch(uploadUrl, {
+    const s3Res = await fetch(signedUrl, {
       method: 'PUT',
-      headers: { 'Content-Type': mediaType },
+      headers: { 'Content-Type': mediaType, 'x-amz-acl': 'public-read', 'x-amz-storage-class': 'STANDARD' },
       body: imageBuffer,
     });
     if (!s3Res.ok) throw new Error('S3 upload failed: ' + await s3Res.text());
@@ -38,7 +35,7 @@ exports.handler = async (event) => {
     const genRes = await fetch('https://www.tailwindapp.com/marketing/tools/image-alt-text-generator/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl }),
+      body: JSON.stringify({ imageUrl: cdnUrl }),
     });
     if (!genRes.ok) throw new Error('Tailwind generate failed: ' + await genRes.text());
     const data = await genRes.json();
