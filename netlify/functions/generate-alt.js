@@ -9,8 +9,8 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
-  const orKey = process.env.OPENROUTER_API_KEY;
-  if (!orKey) return { statusCode: 500, headers, body: JSON.stringify({ error: 'OPENROUTER_API_KEY not configured' }) };
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { statusCode: 500, headers, body: JSON.stringify({ error: 'GEMINI_API_KEY not configured' }) };
 
   try {
     const { image, mediaType, context, style } = JSON.parse(event.body);
@@ -26,46 +26,32 @@ exports.handler = async (event) => {
 
     prompt += 'Respond with ONLY a JSON object, no markdown:\n{"alt":"alt text here","title":"slightly longer title attribute"}';
 
-    // Free vision models on OpenRouter, tried in order
-    const models = [
-      'google/gemma-4-31b-it:free',
-      'nvidia/nemotron-3.5-super-vl:free',
-      'google/gemma-4-26b-a4b-it:free',
-    ];
-
-    let result, lastErr;
-    for (const model of models) {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${orKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://pro-press.netlify.app',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${image}` } },
-              { type: 'text', text: prompt },
-            ],
-          }],
-          max_tokens: 200,
-          temperature: 0.4,
-        }),
-      });
-
-      const body = await res.json();
-      if (res.ok && body.choices?.[0]?.message?.content) { result = body; break; }
-      lastErr = JSON.stringify(body);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    let response, lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await sleep(attempt * 2000);
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ inline_data: { mime_type: mediaType, data: image } }, { text: prompt }] }],
+            generationConfig: { maxOutputTokens: 200, temperature: 0.4 },
+          }),
+        }
+      );
+      if (response.ok) break;
+      lastErr = await response.text();
+      if (response.status !== 503) break;
     }
 
-    if (!result) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'All models failed: ' + lastErr }) };
+    if (!response.ok) {
+      return { statusCode: response.status, headers, body: JSON.stringify({ error: 'Gemini error: ' + lastErr }) };
     }
 
-    let text = result.choices[0].message.content.trim();
+    const data = await response.json();
+    let text = data.candidates[0].content.parts[0].text.trim();
     text = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
 
     let parsed;
