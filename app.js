@@ -490,7 +490,7 @@ async function genAlt(id) {
     const resized = await resizeForAlt(e.file);
     if (!resized) throw new Error('Could not read image');
 
-    const res = await fetch('/.netlify/functions/generate-alt', {
+    const res = await fetch('/api/generate-alt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image: resized.base64, mediaType: resized.mediaType }),
