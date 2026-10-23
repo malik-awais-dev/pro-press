@@ -14,77 +14,71 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'API key not configured' }) };
+  const hfToken = process.env.HF_TOKEN;
+  if (!hfToken) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'HF_TOKEN not configured' }) };
   }
 
   try {
-    const { image, mediaType, context, style } = JSON.parse(event.body);
+    const { image, mediaType } = JSON.parse(event.body);
 
     if (!image || !mediaType) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing image data' }) };
     }
 
-    let prompt = 'Generate concise, descriptive alt text for this image. The alt text should be:\n';
-    prompt += '- Accurate and descriptive of the image content\n';
-    prompt += '- Between 10-125 characters when possible\n';
-    prompt += '- SEO-friendly with natural keyword usage\n';
-    prompt += '- Accessible for screen reader users\n';
-    prompt += '- Written in plain, clear language\n\n';
-
-    if (style === 'detailed') {
-      prompt += 'Provide a more detailed description (up to 200 characters). Include colors, composition, and mood.\n\n';
-    } else if (style === 'seo') {
-      prompt += 'Optimize heavily for SEO. Include likely search keywords naturally.\n\n';
-    } else if (style === 'ecommerce') {
-      prompt += 'Write alt text suitable for an e-commerce product image. Include product type, key features, and color.\n\n';
-    }
-
-    if (context) {
-      prompt += `Additional context from the user: "${context}"\n\n`;
-    }
-
-    prompt += 'Respond with ONLY a JSON object in this exact format (no markdown, no code fences):\n';
-    prompt += '{"alt": "the alt text here", "title": "a slightly longer title attribute suggestion", "caption": "an optional 1-sentence caption for social media or blog use"}';
-
-    const reqBody = JSON.stringify({
-      contents: [{ parts: [{ inline_data: { mime_type: mediaType, data: image } }, { text: prompt }] }],
-      generationConfig: { maxOutputTokens: 300, temperature: 0.4 },
-    });
+    const imageBuffer = Buffer.from(image, 'base64');
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-    let response, lastErr;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      if (attempt > 0) await sleep(attempt * 1500);
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: reqBody }
-      );
-      if (response.ok) break;
-      lastErr = await response.text();
-      if (response.status !== 503) {
-        return { statusCode: response.status, headers, body: JSON.stringify({ error: 'API error: ' + lastErr }) };
+
+    // Try BLIP large first, fall back to BLIP base
+    const models = [
+      'Salesforce/blip-image-captioning-large',
+      'Salesforce/blip-image-captioning-base',
+    ];
+
+    let alt = '';
+    for (const model of models) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await sleep(attempt * 2000);
+
+        const res = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${hfToken}`,
+            'Content-Type': mediaType,
+          },
+          body: imageBuffer,
+        });
+
+        if (res.status === 503) continue; // model loading, retry
+
+        if (!res.ok) {
+          const err = await res.text();
+          return { statusCode: res.status, headers, body: JSON.stringify({ error: 'HF error: ' + err }) };
+        }
+
+        const data = await res.json();
+        alt = Array.isArray(data) ? (data[0]?.generated_text || '') : (data.generated_text || '');
+        if (alt) break;
       }
+      if (alt) break;
     }
 
-    if (!response.ok) {
-      return { statusCode: 503, headers, body: JSON.stringify({ error: 'Gemini is busy, please try again in a moment.' }) };
+    if (!alt) {
+      return { statusCode: 503, headers, body: JSON.stringify({ error: 'Model is loading, please try again in 20 seconds.' }) };
     }
 
-    const data = await response.json();
-    let text = data.candidates[0].content.parts[0].text.trim();
+    // Capitalise first letter
+    alt = alt.charAt(0).toUpperCase() + alt.slice(1);
 
-    text = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const title = alt.length > 80 ? alt.slice(0, 77) + '...' : alt;
+    const html = `<img src="image.jpg" alt="${alt.replace(/"/g, '&quot;')}" title="${title.replace(/"/g, '&quot;')}" />`;
 
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = { alt: text, title: text, caption: '' };
-    }
-
-    return { statusCode: 200, headers, body: JSON.stringify(parsed) };
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ alt, title, caption: '', html }),
+    };
   } catch (err) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
