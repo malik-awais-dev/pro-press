@@ -580,6 +580,9 @@ input[type=range]:disabled { opacity: 0.3; }
   border: 2px solid var(--card-border); border-top-color: var(--accent);
   border-radius: 50%; animation: spin 0.8s linear infinite;
 }
+.alt-field:not(:first-child) {
+    display: none !important;
+}
 .alt-field { margin-bottom: 12px; }
 .alt-field-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .alt-label { font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
