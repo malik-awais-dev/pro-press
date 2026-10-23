@@ -9,8 +9,8 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) return { statusCode: 500, headers, body: JSON.stringify({ error: 'GROQ_API_KEY not configured' }) };
+  const orKey = process.env.OPENROUTER_API_KEY;
+  if (!orKey) return { statusCode: 500, headers, body: JSON.stringify({ error: 'OPENROUTER_API_KEY not configured' }) };
 
   try {
     const { image, mediaType, context, style } = JSON.parse(event.body);
@@ -26,48 +26,51 @@ exports.handler = async (event) => {
 
     prompt += 'Respond with ONLY a JSON object, no markdown:\n{"alt":"alt text here","title":"slightly longer title attribute"}';
 
-    const visionModels = [
-      'llama-4-scout-17b-16e-instruct',
-      'llama-4-maverick-17b-128e-instruct',
-      'llama-3.2-90b-vision-preview',
-      'llava-v1.5-7b-4096-preview',
+    // Free vision models on OpenRouter, tried in order
+    const models = [
+      'meta-llama/llama-3.2-11b-vision-instruct:free',
+      'google/gemma-3-12b-it:free',
+      'qwen/qwen2.5-vl-7b-instruct:free',
     ];
 
-    const messages = [{
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: `data:${mediaType};base64,${image}` } },
-        { type: 'text', text: prompt },
-      ],
-    }];
-
-    let data, lastErr;
-    for (const model of visionModels) {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    let result, lastErr;
+    for (const model of models) {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, max_tokens: 200, temperature: 0.4 }),
+        headers: {
+          'Authorization': `Bearer ${orKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://pro-press.netlify.app',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${image}` } },
+              { type: 'text', text: prompt },
+            ],
+          }],
+          max_tokens: 200,
+          temperature: 0.4,
+        }),
       });
-      if (res.ok) { data = await res.json(); break; }
-      lastErr = await res.text();
-      const parsed = JSON.parse(lastErr);
-      if (!['model_not_found', 'model_decommissioned'].includes(parsed?.error?.code)) {
-        return { statusCode: res.status, headers, body: JSON.stringify({ error: 'Groq error: ' + lastErr }) };
-      }
+
+      const body = await res.json();
+      if (res.ok && body.choices?.[0]?.message?.content) { result = body; break; }
+      lastErr = JSON.stringify(body);
     }
 
-    if (!data) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'No vision model available: ' + lastErr }) };
+    if (!result) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'All models failed: ' + lastErr }) };
     }
-    let text = data.choices[0].message.content.trim();
+
+    let text = result.choices[0].message.content.trim();
     text = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
 
     let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = { alt: text, title: text };
-    }
+    try { parsed = JSON.parse(text); }
+    catch { parsed = { alt: text, title: text }; }
 
     parsed.caption = parsed.caption || '';
     return { statusCode: 200, headers, body: JSON.stringify(parsed) };
