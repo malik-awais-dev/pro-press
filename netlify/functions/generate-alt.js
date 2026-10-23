@@ -48,28 +48,28 @@ exports.handler = async (event) => {
     prompt += 'Respond with ONLY a JSON object in this exact format (no markdown, no code fences):\n';
     prompt += '{"alt": "the alt text here", "title": "a slightly longer title attribute suggestion", "caption": "an optional 1-sentence caption for social media or blog use"}';
 
-    const models = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
-    const body = JSON.stringify({
+    const reqBody = JSON.stringify({
       contents: [{ parts: [{ inline_data: { mime_type: mediaType, data: image } }, { text: prompt }] }],
       generationConfig: { maxOutputTokens: 300, temperature: 0.4 },
     });
 
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
     let response, lastErr;
-    for (const model of models) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) await sleep(attempt * 1500);
       response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: reqBody }
       );
       if (response.ok) break;
-      const err = await response.text();
-      lastErr = err;
-      if (response.status !== 503 && response.status !== 404) {
-        return { statusCode: response.status, headers, body: JSON.stringify({ error: 'API error: ' + err }) };
+      lastErr = await response.text();
+      if (response.status !== 503) {
+        return { statusCode: response.status, headers, body: JSON.stringify({ error: 'API error: ' + lastErr }) };
       }
     }
 
     if (!response.ok) {
-      return { statusCode: response.status, headers, body: JSON.stringify({ error: 'API error: ' + lastErr }) };
+      return { statusCode: 503, headers, body: JSON.stringify({ error: 'Gemini is busy, please try again in a moment.' }) };
     }
 
     const data = await response.json();
