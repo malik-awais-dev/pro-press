@@ -495,7 +495,6 @@ async function genAlt(id) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mimeType }),
-      credentials: 'include',
     });
     if (!signRes.ok) throw new Error('Could not get upload URL from Tailwind');
     const { url: uploadUrl, imageUrl } = await signRes.json();
@@ -513,7 +512,6 @@ async function genAlt(id) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageUrl }),
-      credentials: 'include',
     });
     if (!genRes.ok) throw new Error('Alt text generation failed');
     const data = await genRes.json();
