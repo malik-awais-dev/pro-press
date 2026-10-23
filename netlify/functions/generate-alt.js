@@ -28,9 +28,9 @@ exports.handler = async (event) => {
 
     // Free vision models on OpenRouter, tried in order
     const models = [
-      'meta-llama/llama-3.2-11b-vision-instruct:free',
-      'google/gemma-3-12b-it:free',
-      'qwen/qwen2.5-vl-7b-instruct:free',
+      'google/gemma-4-31b-it:free',
+      'nvidia/nemotron-3.5-super-vl:free',
+      'google/gemma-4-26b-a4b-it:free',
     ];
 
     let result, lastErr;
