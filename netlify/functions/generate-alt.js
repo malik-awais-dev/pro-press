@@ -26,31 +26,39 @@ exports.handler = async (event) => {
 
     prompt += 'Respond with ONLY a JSON object, no markdown:\n{"alt":"alt text here","title":"slightly longer title attribute"}';
 
-    const payload = {
-      model: 'llama-3.2-11b-vision-preview',
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: `data:${mediaType};base64,${image}` } },
-          { type: 'text', text: prompt },
-        ],
-      }],
-      max_tokens: 200,
-      temperature: 0.4,
-    };
+    const visionModels = [
+      'llama-4-scout-17b-16e-instruct',
+      'llama-4-maverick-17b-128e-instruct',
+      'llama-3.2-90b-vision-preview',
+      'llava-v1.5-7b-4096-preview',
+    ];
 
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const messages = [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: `data:${mediaType};base64,${image}` } },
+        { type: 'text', text: prompt },
+      ],
+    }];
 
-    if (!res.ok) {
-      const err = await res.text();
-      return { statusCode: res.status, headers, body: JSON.stringify({ error: 'Groq error: ' + err }) };
+    let data, lastErr;
+    for (const model of visionModels) {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, max_tokens: 200, temperature: 0.4 }),
+      });
+      if (res.ok) { data = await res.json(); break; }
+      lastErr = await res.text();
+      const parsed = JSON.parse(lastErr);
+      if (!['model_not_found', 'model_decommissioned'].includes(parsed?.error?.code)) {
+        return { statusCode: res.status, headers, body: JSON.stringify({ error: 'Groq error: ' + lastErr }) };
+      }
     }
 
-    const data = await res.json();
+    if (!data) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'No vision model available: ' + lastErr }) };
+    }
     let text = data.choices[0].message.content.trim();
     text = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
 
