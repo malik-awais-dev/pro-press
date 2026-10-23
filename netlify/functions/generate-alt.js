@@ -20,7 +20,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ mimeType: mediaType }),
     });
     if (!signRes.ok) throw new Error('Tailwind sign URL failed: ' + await signRes.text());
-    const { url: uploadUrl, imageUrl } = await signRes.json();
+    const signData = await signRes.json();
+    if (!signData) throw new Error('Empty response from Tailwind sign URL');
+    // Return raw response so we can see the actual field names
+    return { statusCode: 200, headers, body: JSON.stringify({ debug: signData }) };
 
     // Step 2: PUT image to S3
     const imageBuffer = Buffer.from(image, 'base64');
