@@ -487,36 +487,20 @@ async function genAlt(id) {
   setTimeout(() => $('altCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
   try {
-    const src = e.blob || e.file;
-    const mimeType = src.type || 'image/jpeg';
+    const resized = await resizeForAlt(e.file);
+    if (!resized) throw new Error('Could not read image');
 
-    // Step 1: get pre-signed S3 upload URL from Tailwind
-    const signRes = await fetch('https://www.tailwindapp.com/marketing/api/generate-temp-signed-url', {
+    const res = await fetch('/.netlify/functions/generate-alt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mimeType }),
+      body: JSON.stringify({ image: resized.base64, mediaType: resized.mediaType }),
     });
-    if (!signRes.ok) throw new Error('Could not get upload URL from Tailwind');
-    const { url: uploadUrl, imageUrl } = await signRes.json();
-
-    // Step 2: upload image directly to S3
-    const s3Res = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': mimeType },
-      body: src,
-    });
-    if (!s3Res.ok) throw new Error('Image upload to S3 failed');
-
-    // Step 3: generate alt text
-    const genRes = await fetch('https://www.tailwindapp.com/marketing/tools/image-alt-text-generator/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl }),
-    });
-    if (!genRes.ok) throw new Error('Alt text generation failed');
-    const data = await genRes.json();
-
-    showAltResult({ alt: data.altText, title: data.altText, caption: '' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Something went wrong.' }));
+      throw new Error(err.error || 'Something went wrong');
+    }
+    const data = await res.json();
+    showAltResult(data);
     log('Alt text generated for ' + e.file.name, 'ok');
   } catch (err) {
     $('altLoading').style.display = 'none';
