@@ -28,7 +28,11 @@ module.exports = async (req, res) => {
 
     const genRes = await fetch('https://www.tailwindapp.com/marketing/tools/image-alt-text-generator/api/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': 'https://www.tailwindapp.com',
+        'Referer': 'https://www.tailwindapp.com/marketing/tools/image-alt-text-generator',
+      },
       body: JSON.stringify({ imageUrl: cdnUrl }),
     });
     if (!genRes.ok) throw new Error('Tailwind generate failed: ' + await genRes.text());
