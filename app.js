@@ -6,7 +6,7 @@ const mimeOf = f => ({ webp: 'image/webp', avif: 'image/avif', jpeg: 'image/jpeg
 const baseName = n => n.replace(/\.[^.]+$/, '');
 const gFmt = () => $('gFmt').value;
 const gQ = () => parseInt($('gQ').value) / 100;
-const gMaxw = () => parseInt($('gMaxw').value) || 0;
+const gMaxw = () => 0;
 
 const qMap = [[10, 'Very low — heavy artifacts'], [20, 'Low — visible loss'], [30, 'Low'], [40, 'Fair'], [50, 'Moderate'], [60, 'Moderate'], [70, 'Good'], [80, 'Good — recommended'], [90, 'Excellent'], [95, 'Near lossless'], [100, 'Maximum quality']];
 function qLabel(v) { let r = qMap[0][1]; for (const [k, l] of qMap) if (v >= k) r = l; return r; }
@@ -28,14 +28,7 @@ $('gFmt').addEventListener('change', () => {
 
 // ── Logging ──
 
-function log(msg, type = '') {
-  const box = $('logBox');
-  const d = document.createElement('div'); d.className = 'log-line';
-  const t = new Date().toTimeString().slice(0, 8);
-  d.innerHTML = `<span class="log-t">${t}</span><span class="log-m ${type}">${msg}</span>`;
-  box.appendChild(d); box.scrollTop = box.scrollHeight;
-}
-$('btnClearLog').addEventListener('click', () => $('logBox').innerHTML = '');
+function log() {}
 
 // ── Drop Zone ──
 
@@ -74,7 +67,7 @@ function addFiles(files) {
     if (!f.type.startsWith('image/')) { skip++; continue; }
     if (f.size > 50 * 1024 * 1024) { log('Too large, skipped: ' + f.name, 'err'); skip++; continue; }
     const id = ++state.nextId;
-    state.files.push({ id, file: f, status: 'pending', blob: null, outSize: 0, outName: null, resolvedName: null, fmt: gFmt(), quality: parseInt($('gQ').value), maxw: gMaxw() });
+    state.files.push({ id, file: f, status: 'pending', blob: null, outSize: 0, outName: null, resolvedName: null, fmt: gFmt(), quality: parseInt($('gQ').value) });
     added++;
   }
   if (added) {
@@ -93,11 +86,13 @@ function addFiles(files) {
 function rebuildTable() {
   if (state.editing) return;
   const container = $('fileBody'); container.innerHTML = '';
+  const qb = $('queueBadge'); if (qb) qb.textContent = state.files.length || '';
   if (!state.files.length) {
-    container.innerHTML = '<div class="empty-hint">No images yet — drop files or click Browse above</div>';
+    container.innerHTML = '<div class="empty-hint">No images yet — drop files or browse above</div>';
     return;
   }
-  state.files.forEach((e, i) => {
+  state.files.forEach(e => {
+    if (!e.thumbUrl) e.thumbUrl = URL.createObjectURL(e.file);
     const card = document.createElement('div');
     card.id = 'tr-' + e.id;
     let cls = 'file-row';
@@ -111,59 +106,68 @@ function rebuildTable() {
     const diff = e.file.size - (e.outSize || 0);
     const pct = e.outSize ? Math.abs(Math.round(diff / e.file.size * 100)) : null;
     const outTxt = e.outSize ? fmtB(e.outSize) : '';
-    const savedTxt = e.outSize ? (diff >= 0 ? '−' : '+') + pct + '%' : '';
-    const savedCls = e.outSize ? (diff >= 0 ? 'saved-pos' : 'saved-neg') : '';
     const ext = extOf(e.fmt || gFmt());
     const dispBase = e.outName || baseName(e.file.name);
-    const dispName = dispBase + '.' + ext;
-    const bcls = { pending: 'b-p', converting: 'b-c', done: 'b-d', error: 'b-e' }[e.status] || 'b-p';
-    const btxt = { pending: 'Pending', converting: 'Working…', done: 'Done', error: 'Error' }[e.status];
-    const fbcls = e.status === 'done' ? 'fb-done' : 'fb-pending';
 
-    let thumbContent = '';
-    if (e.status === 'converting') {
-      thumbContent = `<span class="mi" style="color:var(--outline);font-size:20px">image</span><div class="spinner"><span class="mi">sync</span></div>`;
-    } else {
-      thumbContent = `<span class="mi" style="color:var(--outline);font-size:20px">image</span>`;
-    }
+    const thumbHtml = e.status === 'converting'
+      ? `<img src="${e.thumbUrl}" alt=""><div class="spinner"><span class="mi">sync</span></div>`
+      : `<img src="${e.thumbUrl}" alt="">`;
 
     let metaLine = fmtB(e.file.size);
-    if (e.outSize) metaLine += ` → ${outTxt}`;
+    if (e.status === 'converting') metaLine = 'Compressing…';
+    else if (e.status === 'done' && e.outSize) metaLine = fmtB(e.file.size) + ' → ' + outTxt + ' · ' + ext.toUpperCase();
+    else if (e.status === 'pending') metaLine = fmtB(e.file.size) + ' · waiting';
+    else if (e.status === 'error') metaLine = fmtB(e.file.size) + ' · error';
+
+    let pctHtml = '';
+    if (e.status === 'done' && pct !== null) {
+      const sign = diff >= 0 ? '−' : '+';
+      pctHtml = `<span class="file-pct ${diff >= 0 ? 'pct-done' : 'pct-neg'}">${sign}${pct}%</span>`;
+    } else if (e.status === 'converting') {
+      pctHtml = `<span class="file-pct pct-working">50%</span>`;
+    } else if (e.status === 'pending') {
+      pctHtml = `<span class="file-pct pct-wait">—</span>`;
+    } else if (e.status === 'error') {
+      pctHtml = `<span class="file-pct pct-error">!</span>`;
+    }
 
     let acts = '';
     if (e.status === 'done' && e.blob) {
-      acts += `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button>`;
       acts += `<button class="btn-icon" onclick="event.stopPropagation();openPreview(${e.id})" title="Preview"><span class="mi">visibility</span></button>`;
     }
     if (e.status !== 'converting') {
       const altBtnId = 'altBtn-' + e.id;
-      acts += `<button class="btn btn-secondary btn-sm alt-gen-btn" id="${altBtnId}" onclick="event.stopPropagation();genAlt(${e.id})" title="Generate Alt Text"><span class="mi" style="font-size:15px">image_search</span> Alt</button>`;
+      acts += `<button class="btn-icon btn-icon-alt" id="${altBtnId}" onclick="event.stopPropagation();genAlt(${e.id})" title="Generate Alt Text">Alt</button>`;
     }
+    acts += `<button class="btn-icon danger" onclick="event.stopPropagation();removeOne(${e.id})" title="Remove"><span class="mi">close</span></button>`;
 
     card.innerHTML = `
-      <div class="file-thumb">${thumbContent}</div>
+      <div class="file-thumb">${thumbHtml}</div>
       <div class="file-info">
         <div class="file-name" title="${e.file.name}">
-          <span class="file-name-text" data-id="${e.id}">${dispBase}</span><span style="color:var(--outline);font-weight:400">.${ext}</span>
+          <span class="file-name-text" data-id="${e.id}">${dispBase}</span><span class="file-ext">.${ext}</span>
           <span class="mi edit-hint">edit</span>
         </div>
-        <div class="file-meta">
-          <span class="mono">${metaLine}</span>
-          <span class="format-badge ${fbcls}">${ext.toUpperCase()}</span>
-          ${savedTxt ? `<span class="file-saved ${savedCls}">${savedTxt}</span>` : ''}
-        </div>
+        <div class="file-meta"><span class="mono">${metaLine}</span></div>
         ${e.status === 'converting' ? '<div class="file-progress"><div class="file-progress-bar" style="width:50%"></div></div>' : ''}
       </div>
-      <span class="badge ${bcls}">${btxt}</span>
+      ${pctHtml}
       <div class="file-actions">${acts}</div>`;
 
     card.querySelector('.file-name-text').addEventListener('click', ev => {
       ev.stopPropagation();
       startInlineRename(e.id, card);
     });
-
     container.appendChild(card);
   });
+}
+
+function removeOne(id) {
+  const e = state.files.find(x => x.id === id);
+  if (e) { if (e.thumbUrl) URL.revokeObjectURL(e.thumbUrl); log('Removed: ' + e.file.name); }
+  state.files = state.files.filter(x => x.id !== id);
+  if (state.selId === id) { state.selId = null; $('btnRemSel').disabled = true; }
+  rebuildTable(); updateUI();
 }
 
 // ── Inline Rename ──
@@ -229,21 +233,22 @@ function dlOne(id) {
 
 // ── Preview ──
 
-let prevH = 280;
-const prevSteps = [160, 280, 380, 480, 580];
+let prevH = 320;
+const prevSteps = [200, 320, 440, 560];
 
 function openPreview(id) {
   const e = state.files.find(x => x.id === id); if (!e || !e.blob) return;
-  $('prevCard').style.display = 'block';
+  const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'none';
   $('prevWrap').style.height = prevH + 'px';
   $('prevOrig').src = URL.createObjectURL(e.file);
   $('prevComp').src = URL.createObjectURL(e.blob);
   $('prevComp').className = 'prev-after';
-  $('prevLblL').textContent = 'Before · ' + fmtB(e.file.size);
-  $('prevLblR').textContent = 'After · ' + fmtB(e.outSize);
-  $('prevFooter').textContent = 'Before: ' + fmtB(e.file.size) + '  →  After: ' + fmtB(e.outSize) + '  ·  Drag the line to compare';
+  $('prevLblL').textContent = 'Original · ' + fmtB(e.file.size);
+  $('prevLblR').textContent = (e.fmt || gFmt()).toUpperCase() + ' · ' + fmtB(e.outSize);
+  const saved = Math.round((e.file.size - e.outSize) / e.file.size * 100);
+  $('prevFooter').textContent = fmtB(e.file.size) + ' → ' + fmtB(e.outSize) + '  ·  ' + saved + '% saved';
   setSlider(50);
-  setTimeout(() => $('prevCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  setTimeout(() => $('prevCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
 }
 
 function setSlider(pct) {
@@ -262,7 +267,7 @@ window.addEventListener('touchend', () => dragging = false);
 
 function movePrev(x) {
   const r = $('prevWrap').getBoundingClientRect();
-  setSlider(Math.max(5, Math.min(95, ((x - r.left) / r.width) * 100)));
+  setSlider(Math.max(2, Math.min(98, ((x - r.left) / r.width) * 100)));
 }
 
 $('btnPrevSm').addEventListener('click', () => {
@@ -273,10 +278,6 @@ $('btnPrevLg').addEventListener('click', () => {
   const idx = prevSteps.indexOf(prevH);
   if (idx < prevSteps.length - 1) { prevH = prevSteps[idx + 1]; $('prevWrap').style.height = prevH + 'px'; }
 });
-$('btnClosePreview').addEventListener('click', () => {
-  $('prevCard').style.display = 'none';
-  $('prevOrig').src = ''; $('prevComp').src = '';
-});
 
 // ── UI State ──
 
@@ -286,8 +287,9 @@ function convertLabel() {
 
 function updateUI() {
   const any = state.files.length > 0;
+  const allDone = any && state.files.every(e => e.status === 'done');
   const btn = $('btnConvert');
-  btn.disabled = !any;
+  btn.disabled = !any || allDone;
   btn.innerHTML = convertLabel();
   $('btnClear').disabled = !any;
   updateStats();
@@ -300,6 +302,7 @@ function updateStats() {
   const done = state.files.some(e => e.status === 'done');
   const allDone = n > 0 && state.files.every(e => e.status === 'done' || e.status === 'error');
   $('stFiles').textContent = n;
+  const qb = $('queueBadge'); if (qb) qb.textContent = n || '';
   $('stOrig').textContent = fmtB(orig) || '—';
   $('stComp').textContent = done ? fmtB(out) : '—';
   if (done && out > 0) {
@@ -350,14 +353,17 @@ $('btnConvert').addEventListener('click', async () => {
   const btn = $('btnConvert');
   btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Working…';
   $('stStatus').textContent = 'Converting'; $('stStatus').style.color = 'var(--secondary)';
-  log('Starting — ' + state.files.filter(e => e.status !== 'done').length + ' file(s)', 'info');
+  let autoPreviewDone = false;
   for (const entry of state.files) {
     if (entry.status === 'done') continue;
     entry.status = 'converting'; rebuildTable();
     await compressEntry(entry);
     rebuildTable(); updateStats();
+    if (!autoPreviewDone && entry.status === 'done') {
+      openPreview(entry.id);
+      autoPreviewDone = true;
+    }
   }
-  log('All done — click Preview on any row to compare', 'info');
   btn.innerHTML = convertLabel(); btn.disabled = false;
   $('stStatus').textContent = 'Done'; $('stStatus').style.color = 'var(--tertiary)';
   updateStats();
@@ -375,7 +381,8 @@ $('btnRemSel').addEventListener('click', () => {
 $('btnClear').addEventListener('click', () => {
   state.files = []; state.selId = null; state.lastBlob = null;
   rebuildTable(); updateUI();
-  $('prevCard').style.display = 'none';
+  $('prevOrig').src = ''; $('prevComp').src = '';
+  const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'flex';
   $('stStatus').textContent = 'Ready'; $('stStatus').style.color = 'var(--tertiary)';
   log('Cleared', 'info');
 });
@@ -478,7 +485,7 @@ async function genAlt(id) {
   altBusy = true;
 
   const btn = $('altBtn-' + id);
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:15px;animation:spin 0.8s linear infinite">sync</span> Alt'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:16px;animation:spin 0.8s linear infinite">sync</span>'; }
 
   $('altCard').style.display = 'block';
   $('altLoading').style.display = 'flex';
@@ -512,7 +519,7 @@ async function genAlt(id) {
     log('Alt text error: ' + err.message, 'err');
   } finally {
     altBusy = false;
-    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="mi" style="font-size:15px">image_search</span> Alt'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Alt'; }
   }
 }
 
