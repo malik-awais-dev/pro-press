@@ -471,28 +471,67 @@ function resizeForAlt(file) {
 }
 
 async function genAlt(id) {
+  if (altBusy) return;
   const e = state.files.find(x => x.id === id);
   if (!e) return;
+  altEntryId = id;
+  altBusy = true;
 
-  const src = e.blob || e.file;
+  const btn = $('altBtn-' + id);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:15px;animation:spin 0.8s linear infinite">sync</span> Alt'; }
+
+  $('altCard').style.display = 'block';
+  $('altLoading').style.display = 'flex';
+  $('altResults').style.display = 'none';
+  $('altFileName').textContent = e.file.name;
+  setTimeout(() => $('altCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
   try {
-    // Convert to PNG for clipboard (clipboard API only supports PNG)
-    let pngBlob = src;
-    if (!src.type || src.type !== 'image/png') {
-      const bmp = await createImageBitmap(src);
-      const c = document.createElement('canvas');
-      c.width = bmp.width; c.height = bmp.height;
-      c.getContext('2d').drawImage(bmp, 0, 0);
-      pngBlob = await new Promise(r => c.toBlob(r, 'image/png'));
-    }
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
-    log('Image copied to clipboard — paste it on Tailwind (Ctrl+V)', 'ok');
-  } catch {
-    log('Clipboard unavailable — drag your image onto Tailwind manually', 'info');
-  }
+    const src = e.blob || e.file;
+    const mimeType = src.type || 'image/jpeg';
 
-  window.open('https://www.tailwindapp.com/marketing/tools/image-alt-text-generator', '_blank');
+    // Step 1: get pre-signed S3 upload URL from Tailwind
+    const signRes = await fetch('https://www.tailwindapp.com/marketing/api/generate-temp-signed-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mimeType }),
+      credentials: 'include',
+    });
+    if (!signRes.ok) throw new Error('Could not get upload URL from Tailwind');
+    const { url: uploadUrl, imageUrl } = await signRes.json();
+
+    // Step 2: upload image directly to S3
+    const s3Res = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': mimeType },
+      body: src,
+    });
+    if (!s3Res.ok) throw new Error('Image upload to S3 failed');
+
+    // Step 3: generate alt text
+    const genRes = await fetch('https://www.tailwindapp.com/marketing/tools/image-alt-text-generator/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl }),
+      credentials: 'include',
+    });
+    if (!genRes.ok) throw new Error('Alt text generation failed');
+    const data = await genRes.json();
+
+    showAltResult({ alt: data.altText, title: data.altText, caption: '' });
+    log('Alt text generated for ' + e.file.name, 'ok');
+  } catch (err) {
+    $('altLoading').style.display = 'none';
+    $('altResults').style.display = 'block';
+    $('altResults').innerHTML = `<div class="alt-error">${escHtml(err.message)}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button class="btn btn-secondary btn-sm" onclick="genAlt(${id})"><span class="mi" style="font-size:14px">refresh</span> Retry</button>
+      </div>`;
+    log('Alt text error: ' + err.message, 'err');
+  } finally {
+    altBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="mi" style="font-size:15px">image_search</span> Alt'; }
+  }
 }
 
 function showAltResult(data) {
