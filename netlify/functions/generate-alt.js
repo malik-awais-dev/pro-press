@@ -48,38 +48,28 @@ exports.handler = async (event) => {
     prompt += 'Respond with ONLY a JSON object in this exact format (no markdown, no code fences):\n';
     prompt += '{"alt": "the alt text here", "title": "a slightly longer title attribute suggestion", "caption": "an optional 1-sentence caption for social media or blog use"}';
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inline_data: {
-                    mime_type: mediaType,
-                    data: image,
-                  },
-                },
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            maxOutputTokens: 300,
-            temperature: 0.4,
-          },
-        }),
+    const models = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+    const body = JSON.stringify({
+      contents: [{ parts: [{ inline_data: { mime_type: mediaType, data: image } }, { text: prompt }] }],
+      generationConfig: { maxOutputTokens: 300, temperature: 0.4 },
+    });
+
+    let response, lastErr;
+    for (const model of models) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
+      );
+      if (response.ok) break;
+      const err = await response.text();
+      lastErr = err;
+      if (response.status !== 503 && response.status !== 404) {
+        return { statusCode: response.status, headers, body: JSON.stringify({ error: 'API error: ' + err }) };
       }
-    );
+    }
 
     if (!response.ok) {
-      const err = await response.text();
-      return { statusCode: response.status, headers, body: JSON.stringify({ error: 'API error: ' + err }) };
+      return { statusCode: response.status, headers, body: JSON.stringify({ error: 'API error: ' + lastErr }) };
     }
 
     const data = await response.json();
