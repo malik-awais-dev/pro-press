@@ -27,7 +27,7 @@ exports.handler = async (event) => {
     prompt += 'Respond with ONLY a JSON object, no markdown:\n{"alt":"alt text here","title":"slightly longer title attribute"}';
 
     const payload = {
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: 'llama-3.2-11b-vision-preview',
       messages: [{
         role: 'user',
         content: [
