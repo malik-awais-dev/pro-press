@@ -134,6 +134,7 @@ function rebuildTable() {
     let acts = '';
     if (e.status === 'done' && e.blob) {
       acts += `<button class="btn-icon" onclick="event.stopPropagation();openPreview(${e.id})" title="Preview"><span class="mi">visibility</span></button>`;
+      acts += `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button>`;
     }
     if (e.status !== 'converting') {
       const altBtnId = 'altBtn-' + e.id;
@@ -540,20 +541,6 @@ function showAltResult(data) {
       </div>
       <div class="alt-val" id="altVal">${escHtml(alt)}</div>
       <div class="alt-chars"><span style="color:${charColor}">${chars} chars</span> · under 125 recommended</div>
-    </div>
-    <div class="alt-field">
-      <div class="alt-field-top">
-        <span class="alt-label">Title</span>
-        <button class="btn btn-secondary btn-sm" onclick="copyAlt('titleVal')"><span class="mi" style="font-size:14px">content_copy</span> Copy</button>
-      </div>
-      <div class="alt-val" id="titleVal">${escHtml(title)}</div>
-    </div>
-    <div class="alt-field">
-      <div class="alt-field-top">
-        <span class="alt-label">HTML</span>
-        <button class="btn btn-secondary btn-sm" onclick="copyAlt('htmlVal')"><span class="mi" style="font-size:14px">content_copy</span> Copy</button>
-      </div>
-      <pre class="alt-code" id="htmlVal">&lt;img src="image.jpg" alt="${escHtml(alt)}" title="${escHtml(title)}" /&gt;</pre>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
       <button class="btn btn-secondary btn-sm" onclick="genAlt(${altEntryId})"><span class="mi" style="font-size:14px">refresh</span> Regenerate</button>
