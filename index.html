@@ -234,6 +234,7 @@
 
 <script>
 function setChip(selectId, groupId, btn) {
+  if (btn && btn.disabled) return;
   var sel = document.getElementById(selectId);
   sel.value = btn.getAttribute('data-val');
   document.querySelectorAll('#' + groupId + ' .chip').forEach(function(c) { c.classList.remove('active'); });
@@ -244,6 +245,5 @@ function setChip(selectId, groupId, btn) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="app.js"></script>
 <script src="alt-ux.js"></script>
-<img src="assests/cats.webp" alt="" class="cats-img"/>
 </body>
 </html>
