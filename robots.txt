@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pro-press.vercel.app/sitemap.xml

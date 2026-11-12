@@ -1,4 +1,4 @@
-const state = { files: [], nextId: 0, lastBlob: null, selId: null, editing: false, shownRenameTip: false };
+const state = { files: [], nextId: 0, lastBlob: null, selId: null, editing: false, shownRenameTip: false, shownAltTip: false };
 const $ = id => document.getElementById(id);
 const fmtB = b => !b ? '0 B' : b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
 const extOf = f => ({ webp: 'webp', avif: 'avif', jpeg: 'jpg', png: 'png' }[f]);
@@ -6,10 +6,164 @@ const mimeOf = f => ({ webp: 'image/webp', avif: 'image/avif', jpeg: 'image/jpeg
 const baseName = n => n.replace(/\.[^.]+$/, '');
 const gFmt = () => $('gFmt').value;
 const gQ = () => parseInt($('gQ').value) / 100;
-const gMaxw = () => 0;
+// Max output width: 0 = keep original dimensions, otherwise scale images
+// wider than this down (e.g. a 3300px photo → 800px web-ready image).
+const gMaxw = () => parseInt($('gMaxw').value) || 0;
 
 const qMap = [[10, 'Very low — heavy artifacts'], [20, 'Low — visible loss'], [30, 'Low'], [40, 'Fair'], [50, 'Moderate'], [60, 'Moderate'], [70, 'Good'], [80, 'Good — recommended'], [90, 'Excellent'], [95, 'Near lossless'], [100, 'Maximum quality']];
 function qLabel(v) { let r = qMap[0][1]; for (const [k, l] of qMap) if (v >= k) r = l; return r; }
+
+// ── Lazy JSZip loader ──
+// The ZIP library (~100 KB) is NOT loaded on page load anymore — it only
+// downloads the first time a visitor actually builds a ZIP. Single-file
+// downloads and everything else need no extra library at all.
+let jsZipPromise = null;
+function ensureJSZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (!jsZipPromise) {
+    jsZipPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.2/jszip.min.js';
+      s.onload = () => window.JSZip ? resolve(window.JSZip) : reject(new Error('ZIP library unavailable'));
+      s.onerror = () => { jsZipPromise = null; reject(new Error('Could not download the ZIP library')); };
+      document.head.appendChild(s);
+    });
+  }
+  return jsZipPromise;
+}
+
+// ── Toasts (log() is user-visible) ──
+
+(function injectToastStyle() {
+  const s = document.createElement('style');
+  s.textContent = '@keyframes ppToastIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}' +
+    '@keyframes ppBarSlide{0%{margin-left:-35%}100%{margin-left:100%}}';
+  document.head.appendChild(s);
+})();
+
+const toastWrap = document.createElement('div');
+toastWrap.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(340px,86vw);pointer-events:none;';
+document.body.appendChild(toastWrap);
+
+function log(msg, type) {
+  if (!msg) return;
+  const t = document.createElement('div');
+  const accent = type === 'err' ? '#DC2626' : type === 'ok' ? '#16A34A' : 'var(--secondary, #8B7FD4)';
+  t.style.cssText = 'pointer-events:auto;padding:10px 14px 10px 12px;border-radius:10px;font-size:12.5px;font-weight:500;line-height:1.45;color:#2d2940;background:#F4EFF3;border-left:3px solid ' + accent + ';box-shadow:0 8px 28px rgba(58,53,80,0.18);animation:ppToastIn .25s ease;';
+  t.textContent = msg;
+  toastWrap.appendChild(t);
+  while (toastWrap.children.length > 4) toastWrap.firstChild.remove();
+  setTimeout(() => {
+    t.style.transition = 'opacity .3s';
+    t.style.opacity = '0';
+    setTimeout(() => t.remove(), 320);
+  }, type === 'err' ? 4200 : 2600);
+}
+
+// ── Filename slug from alt text (for auto-rename) ──
+
+function slugify(text, maxWords) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .split(/\s+/)
+    .slice(0, maxWords || 6)
+    .join('-')
+    .slice(0, 60);
+}
+
+function escapeXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// ── Alt-text metadata embedding (best-effort; many tools read it, WordPress does not
+//    auto-fill its own Alt field from it — Copy button remains the reliable WP path) ──
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function embedAltPNG(bytes, alt) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50) return bytes;
+  let pos = 8, insertAt = -1;
+  while (pos + 8 <= bytes.length) {
+    const len = dv.getUint32(pos);
+    const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+    if (type === 'IEND') { insertAt = pos; break; }
+    pos += 12 + len;
+  }
+  if (insertAt < 0) return bytes;
+  const enc = new TextEncoder();
+  const textBytes = enc.encode('Description\0' + alt);
+  const chunk = new Uint8Array(12 + textBytes.length);
+  const cdv = new DataView(chunk.buffer);
+  cdv.setUint32(0, textBytes.length);
+  chunk.set(enc.encode('tEXt'), 4);
+  chunk.set(textBytes, 12);
+  cdv.setUint32(8 + textBytes.length, crc32(chunk.subarray(4, 8 + textBytes.length)));
+  const out = new Uint8Array(bytes.length + chunk.length);
+  out.set(bytes.subarray(0, insertAt));
+  out.set(chunk, insertAt);
+  out.set(bytes.subarray(insertAt), insertAt + chunk.length);
+  return out;
+}
+
+function embedAltJPEG(bytes, alt) {
+  if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return bytes;
+  const enc = new TextEncoder();
+  const xmp = enc.encode(
+    '<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>' +
+    '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' +
+    '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">' +
+    '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">' + escapeXml(alt) + '</rdf:li></rdf:Alt></dc:description>' +
+    '</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>');
+  const ns = enc.encode('http://ns.adobe.com/xap/1.0/\0');
+  const segDataLen = ns.length + xmp.length;
+  const seg = new Uint8Array(4 + segDataLen);
+  const sdv = new DataView(seg.buffer);
+  sdv.setUint16(0, 0xFFE1);
+  sdv.setUint16(2, segDataLen + 2);
+  seg.set(ns, 4);
+  seg.set(xmp, 4 + ns.length);
+  let at = 2;
+  if (bytes.length > 4 && bytes[2] === 0xFF && bytes[3] === 0xE0) {
+    const l = (bytes[4] << 8) | bytes[5];
+    at = 2 + 2 + l;
+  }
+  const out = new Uint8Array(bytes.length + seg.length);
+  out.set(bytes.subarray(0, at));
+  out.set(seg, at);
+  out.set(bytes.subarray(at), at + seg.length);
+  return out;
+}
+
+async function blobWithAlt(blob, entry) {
+  if (!entry || !entry.altText) return blob;
+  const f = entry.fmt || gFmt();
+  if (f !== 'png' && f !== 'jpeg') return blob;
+  try {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const out = f === 'png' ? embedAltPNG(bytes, entry.altText) : embedAltJPEG(bytes, entry.altText);
+    return new Blob([out], { type: mimeOf(f) });
+  } catch (err) {
+    console.error('Alt embed failed:', err);
+    return blob;
+  }
+}
 
 // ── Quality & Format Controls ──
 
@@ -17,6 +171,7 @@ $('gQ').addEventListener('input', () => {
   const v = parseInt($('gQ').value);
   $('gQout').textContent = v + '%';
   $('qHint').textContent = qLabel(v);
+  applySettingsToPending();
 });
 
 $('gFmt').addEventListener('change', () => {
@@ -24,11 +179,66 @@ $('gFmt').addEventListener('change', () => {
   $('gQ').disabled = p;
   $('gQout').style.opacity = p ? .3 : 1;
   $('qHint').textContent = p ? 'Lossless — quality setting ignored' : qLabel(parseInt($('gQ').value));
+  applySettingsToPending();
 });
 
-// ── Logging ──
+$('gMaxw').addEventListener('change', applySettingsToPending);
 
-function log() {}
+// QA: sync the hint with the slider's actual default on first load, so the page
+// never starts with a hint that disagrees with the 80% default position.
+$('qHint').textContent = qLabel(parseInt($('gQ').value));
+
+function applySettingsToPending() {
+  if (state.editing) return;
+  const fmt = gFmt();
+  const q = parseInt($('gQ').value);
+  const mw = gMaxw();
+  let changed = false;
+  state.files.forEach(e => {
+    if (e.status === 'pending' || e.status === 'error') {
+      if (e.fmt !== fmt) { e.fmt = fmt; changed = true; }
+      if (e.quality !== q) { e.quality = q; changed = true; }
+      if ((e.maxw || 0) !== mw) { e.maxw = mw; changed = true; }
+    }
+  });
+  if (changed) rebuildTable();
+}
+
+// ── Encode support detection ──
+
+const fmtSupport = { webp: true, avif: true, jpeg: true, png: true };
+
+function detectEncodeSupport(mime) {
+  return new Promise(resolve => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = 2; c.height = 2;
+      c.toBlob(b => resolve(!!(b && b.type === mime)), mime);
+    } catch (e) { resolve(false); }
+  });
+}
+
+(async function detectFormats() {
+  fmtSupport.webp = await detectEncodeSupport('image/webp');
+  fmtSupport.avif = await detectEncodeSupport('image/avif');
+  ['webp', 'avif'].forEach(f => {
+    if (fmtSupport[f]) return;
+    const chip = document.querySelector('#fmtChips .chip[data-val="' + f + '"]');
+    if (chip) {
+      chip.disabled = true;
+      chip.title = 'Not supported in this browser';
+      chip.style.opacity = '.35';
+      chip.style.cursor = 'not-allowed';
+    }
+    const opt = $('gFmt').querySelector('option[value="' + f + '"]');
+    if (opt) opt.disabled = true;
+    if (gFmt() === f) {
+      const fallback = fmtSupport.webp ? 'webp' : (fmtSupport.avif ? 'avif' : 'jpeg');
+      const fbChip = document.querySelector('#fmtChips .chip[data-val="' + fallback + '"]');
+      if (fbChip && typeof setChip === 'function') setChip('gFmt', 'fmtChips', fbChip);
+    }
+  });
+})();
 
 // ── Drop Zone ──
 
@@ -38,7 +248,7 @@ dz.addEventListener('dragleave', () => dz.classList.remove('over'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); addFiles(e.dataTransfer.files); });
 $('fi').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
 
-// ── Convert FAB Attention Pulse ──
+// ── Attention pulses ──
 
 function pulseConvertBtn() {
   const btn = $('btnConvert');
@@ -46,6 +256,13 @@ function pulseConvertBtn() {
   void btn.offsetWidth;
   btn.classList.add('fab-attention');
   btn.addEventListener('animationend', () => btn.classList.remove('fab-attention'), { once: true });
+}
+
+function pulseDownloadBtn() {
+  const btn = $('btnDlAll');
+  btn.classList.remove('dl-ready');
+  void btn.offsetWidth;
+  btn.classList.add('dl-ready');
 }
 
 function showRenameTip() {
@@ -67,7 +284,7 @@ function addFiles(files) {
     if (!f.type.startsWith('image/')) { skip++; continue; }
     if (f.size > 50 * 1024 * 1024) { log('Too large, skipped: ' + f.name, 'err'); skip++; continue; }
     const id = ++state.nextId;
-    state.files.push({ id, file: f, status: 'pending', blob: null, outSize: 0, outName: null, resolvedName: null, fmt: gFmt(), quality: parseInt($('gQ').value) });
+    state.files.push({ id, file: f, status: 'pending', blob: null, outSize: 0, outName: null, resolvedName: null, fmt: gFmt(), quality: parseInt($('gQ').value), maxw: gMaxw() });
     added++;
   }
   if (added) {
@@ -79,8 +296,15 @@ function addFiles(files) {
       setTimeout(showRenameTip, 600);
     }
   } else {
+    if (skip) log('No images added — ' + skip + ' file(s) skipped (unsupported type or over 50 MB)', 'err');
     rebuildTable(); updateUI();
   }
+}
+
+// Alt button markup: a proper labelled pill with an icon, not a cryptic "Alt" square.
+function altBtnHtml(entry) {
+  const done = !!(entry && entry.altText);
+  return '<span class="mi" style="font-size:14px">' + (done ? 'check' : 'auto_awesome') + '</span> Alt';
 }
 
 function rebuildTable() {
@@ -115,7 +339,10 @@ function rebuildTable() {
 
     let metaLine = fmtB(e.file.size);
     if (e.status === 'converting') metaLine = 'Compressing…';
-    else if (e.status === 'done' && e.outSize) metaLine = fmtB(e.file.size) + ' → ' + outTxt + ' · ' + ext.toUpperCase();
+    else if (e.status === 'done' && e.outSize) {
+      const dimTxt = (e.outW && e.wasResized) ? e.wasResized : '';
+      metaLine = fmtB(e.file.size) + ' → ' + outTxt + ' · ' + ext.toUpperCase() + (dimTxt ? ' · ' + dimTxt : '');
+    }
     else if (e.status === 'pending') metaLine = fmtB(e.file.size) + ' · waiting';
     else if (e.status === 'error') metaLine = fmtB(e.file.size) + ' · error';
 
@@ -124,7 +351,7 @@ function rebuildTable() {
       const sign = diff >= 0 ? '−' : '+';
       pctHtml = `<span class="file-pct ${diff >= 0 ? 'pct-done' : 'pct-neg'}">${sign}${pct}%</span>`;
     } else if (e.status === 'converting') {
-      pctHtml = `<span class="file-pct pct-working">50%</span>`;
+      pctHtml = `<span class="file-pct pct-working">…</span>`;
     } else if (e.status === 'pending') {
       pctHtml = `<span class="file-pct pct-wait">—</span>`;
     } else if (e.status === 'error') {
@@ -137,10 +364,13 @@ function rebuildTable() {
       acts += `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button>`;
     }
     if (e.status !== 'converting') {
-      const altBtnId = 'altBtn-' + e.id;
-      acts += `<button class="btn-icon btn-icon-alt" id="${altBtnId}" onclick="event.stopPropagation();genAlt(${e.id})" title="Generate Alt Text">Alt</button>`;
+      acts += `<button class="alt-pill${e.altText ? ' alt-done' : ''}" id="altBtn-${e.id}" onclick="event.stopPropagation();genAlt(${e.id})" title="Write alt text with AI">${altBtnHtml(e)}</button>`;
     }
     acts += `<button class="btn-icon danger" onclick="event.stopPropagation();removeOne(${e.id})" title="Remove"><span class="mi">close</span></button>`;
+
+    const progHtml = e.status === 'converting'
+      ? '<div class="file-progress" style="overflow:hidden"><div class="file-progress-bar" style="width:35%;animation:ppBarSlide 1.1s ease-in-out infinite"></div></div>'
+      : '';
 
     card.innerHTML = `
       <div class="file-thumb">${thumbHtml}</div>
@@ -150,7 +380,7 @@ function rebuildTable() {
           <span class="mi edit-hint">edit</span>
         </div>
         <div class="file-meta"><span class="mono">${metaLine}</span></div>
-        ${e.status === 'converting' ? '<div class="file-progress"><div class="file-progress-bar" style="width:50%"></div></div>' : ''}
+        ${progHtml}
       </div>
       ${pctHtml}
       <div class="file-actions">${acts}</div>`;
@@ -191,7 +421,7 @@ function startInlineRename(id, card) {
   nameEl.appendChild(input);
 
   const extSpan = document.createElement('span');
-  extSpan.style.cssText = 'color:var(--outline);font-weight:400;font-size:14px;flex-shrink:0';
+  extSpan.style.cssText = 'color:var(--text-muted);font-weight:400;font-size:14px;flex-shrink:0';
   extSpan.textContent = '.' + ext;
   nameEl.appendChild(extSpan);
 
@@ -205,10 +435,12 @@ function startInlineRename(id, card) {
     const val = input.value.trim();
     if (val && val !== baseName(entry.file.name)) {
       entry.outName = val;
+      entry.autoNamed = false; // manual rename wins over auto-alt-rename from now on
       if (entry.resolvedName) entry.resolvedName = val + '.' + ext;
       log('Renamed → ' + val + '.' + ext, 'ok');
     } else if (!val) {
       entry.outName = null;
+      entry.autoNamed = false;
       entry.resolvedName = null;
     }
     state.editing = false;
@@ -225,24 +457,35 @@ function startInlineRename(id, card) {
 
 // ── Download Single ──
 
-function dlOne(id) {
-  const e = state.files.find(x => x.id === id); if (!e || !e.blob) return;
-  const url = URL.createObjectURL(e.blob);
-  const a = document.createElement('a'); a.href = url; a.download = e.resolvedName || baseName(e.file.name) + '.' + extOf(e.fmt || gFmt());
+async function dlOne(id) {
+  const e = state.files.find(x => x.id === id);
+  if (!e || !e.blob) return;
+  const out = await blobWithAlt(e.blob, e);
+  const name = e.resolvedName || baseName(e.file.name) + '.' + extOf(e.fmt || gFmt());
+  const url = URL.createObjectURL(out);
+  const a = document.createElement('a'); a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  log('Downloaded: ' + name, 'ok');
 }
 
 // ── Preview ──
 
 let prevH = 320;
 const prevSteps = [200, 320, 440, 560];
+// QA: preview object URLs are tracked so each new preview revokes the previous
+// pair — repeated eye-icon clicks no longer leak two blobs per click.
+let prevUrls = [];
 
 function openPreview(id) {
   const e = state.files.find(x => x.id === id); if (!e || !e.blob) return;
+  // On mobile the preview card is hidden by default (CSS); reveal it on demand.
+  $('prevCard').classList.add('mobile-show');
   const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'none';
   $('prevWrap').style.height = prevH + 'px';
-  $('prevOrig').src = URL.createObjectURL(e.file);
-  $('prevComp').src = URL.createObjectURL(e.blob);
+  prevUrls.forEach(u => URL.revokeObjectURL(u));
+  prevUrls = [URL.createObjectURL(e.file), URL.createObjectURL(e.blob)];
+  $('prevOrig').src = prevUrls[0];
+  $('prevComp').src = prevUrls[1];
   $('prevComp').className = 'prev-after';
   $('prevLblL').textContent = 'Original · ' + fmtB(e.file.size);
   $('prevLblR').textContent = (e.fmt || gFmt()).toUpperCase() + ' · ' + fmtB(e.outSize);
@@ -286,6 +529,11 @@ function convertLabel() {
   return '<span class="mi">bolt</span> ' + (state.files.length === 1 ? 'Convert It' : 'Convert All');
 }
 
+function downloadLabel(doneCount) {
+  const txt = doneCount === 1 ? 'Download image' : 'Download ZIP';
+  return '<span class="mi" style="font-size:16px">download</span> ' + txt;
+}
+
 function updateUI() {
   const any = state.files.length > 0;
   const allDone = any && state.files.every(e => e.status === 'done');
@@ -302,6 +550,7 @@ function updateStats() {
   const out = state.files.reduce((s, e) => s + (e.outSize || 0), 0);
   const done = state.files.some(e => e.status === 'done');
   const allDone = n > 0 && state.files.every(e => e.status === 'done' || e.status === 'error');
+  const doneCount = state.files.filter(e => e.status === 'done').length;
   $('stFiles').textContent = n;
   const qb = $('queueBadge'); if (qb) qb.textContent = n || '';
   $('stOrig').textContent = fmtB(orig) || '—';
@@ -310,7 +559,9 @@ function updateStats() {
     const saved = orig - out; const pct = Math.round(saved / orig * 100);
     $('stSaved').textContent = fmtB(saved) + ' (' + pct + '%)';
   } else { $('stSaved').textContent = '—'; }
-  $('btnDlAll').disabled = !allDone || !done;
+  const dl = $('btnDlAll');
+  dl.disabled = !allDone || !done;
+  dl.innerHTML = downloadLabel(dl.disabled ? 0 : doneCount);
   $('btnCopyLast').disabled = !state.lastBlob;
 }
 
@@ -318,17 +569,26 @@ function updateStats() {
 
 async function compressEntry(entry) {
   return new Promise(resolve => {
+    const f = entry.fmt || gFmt();
+    if (!fmtSupport[f]) {
+      entry.status = 'error';
+      log(f.toUpperCase() + ' encoding not supported in this browser: ' + entry.file.name, 'err');
+      resolve();
+      return;
+    }
     const url = URL.createObjectURL(entry.file);
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let w = img.width, h = img.height;
+      const origW = w;
       const mw = entry.maxw || gMaxw();
       if (mw && w > mw) { h = Math.round(h * mw / w); w = mw; }
+      entry.wasResized = (mw && origW > mw) ? (origW + '→' + w + 'px') : null;
+      entry.outW = w;
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      const f = entry.fmt || gFmt();
       const q = f === 'png' ? undefined : entry.quality / 100 || gQ();
       canvas.toBlob(blob => {
         if (!blob) { entry.status = 'error'; log('Error: ' + entry.file.name, 'err'); resolve(); return; }
@@ -339,7 +599,7 @@ async function compressEntry(entry) {
         const diff = entry.file.size - blob.size;
         const pct = Math.abs(Math.round(diff / entry.file.size * 100));
         const sign = diff >= 0 ? '−' : '+';
-        log(baseName(entry.file.name) + ' · ' + fmtB(entry.file.size) + ' → ' + fmtB(blob.size) + ' (' + sign + pct + '%)', 'ok');
+        log(baseName(entry.file.name) + ' · ' + fmtB(entry.file.size) + ' → ' + fmtB(blob.size) + ' (' + sign + pct + '%)' + (entry.wasResized ? ' · resized ' + entry.wasResized : ''), 'ok');
         resolve();
       }, mimeOf(f), q);
     };
@@ -350,60 +610,121 @@ async function compressEntry(entry) {
 
 // ── Action Buttons ──
 
+const CONVERT_CONCURRENCY = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
+let converting = false;
+
 $('btnConvert').addEventListener('click', async () => {
+  if (converting) return;
   const btn = $('btnConvert');
-  btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Working…';
-  $('stStatus').textContent = 'Converting'; $('stStatus').style.color = 'var(--secondary)';
+  const todo = state.files.filter(e => e.status === 'pending' || e.status === 'error');
+  if (!todo.length) { updateUI(); return; }
+
+  converting = true;
+  btn.disabled = true;
+  $('stStatus').style.color = 'var(--secondary)';
+  const total = todo.length;
+  let finished = 0;
+  let next = 0;
   let autoPreviewDone = false;
-  for (const entry of state.files) {
-    if (entry.status === 'done') continue;
-    entry.status = 'converting'; rebuildTable();
-    await compressEntry(entry);
-    rebuildTable(); updateStats();
-    if (!autoPreviewDone && entry.status === 'done') {
-      openPreview(entry.id);
-      autoPreviewDone = true;
+
+  function setProgress() {
+    btn.innerHTML = '<span class="mi" style="animation:spin 0.8s linear infinite">sync</span> ' + finished + '/' + total;
+    $('stStatus').textContent = 'Converting ' + finished + '/' + total;
+  }
+  setProgress();
+
+  async function worker() {
+    while (next < todo.length) {
+      const entry = todo[next++];
+      entry.status = 'converting';
+      rebuildTable();
+      await compressEntry(entry);
+      finished++;
+      setProgress();
+      rebuildTable(); updateStats();
+      // Auto-open the preview only on desktop — on phones the card stays
+      // hidden until the user taps the eye icon, keeping the queue in focus.
+      if (!autoPreviewDone && entry.status === 'done' && window.innerWidth > 760) {
+        openPreview(entry.id);
+        autoPreviewDone = true;
+      }
     }
   }
-  btn.innerHTML = convertLabel(); btn.disabled = false;
-  $('stStatus').textContent = 'Done'; $('stStatus').style.color = 'var(--tertiary)';
-  updateStats();
+
+  const lanes = Math.min(CONVERT_CONCURRENCY, todo.length);
+  await Promise.all(Array.from({ length: lanes }, () => worker()));
+
+  converting = false;
+  const anyErr = state.files.some(e => e.status === 'error');
+  const okCount = state.files.filter(e => e.status === 'done').length;
+  $('stStatus').textContent = anyErr ? 'Done — some files failed' : 'Done';
+  $('stStatus').style.color = 'var(--tertiary)';
+  updateUI(); updateStats();
+  if (okCount) {
+    log('Ready to download — ' + (okCount === 1 ? 'your image' : okCount + ' images') + ' converted', 'ok');
+    pulseDownloadBtn();
+    if (!state.shownAltTip && !state.files.some(e => e.altText)) {
+      state.shownAltTip = true;
+      setTimeout(() => log('Tip: tap the ✨ Alt button to auto-write alt text for any image', 'info'), 1200);
+    }
+  }
 });
 
 $('btnRemSel').addEventListener('click', () => {
   if (!state.selId) return;
   const e = state.files.find(x => x.id === state.selId);
-  if (e) log('Removed: ' + e.file.name);
+  if (e) { if (e.thumbUrl) URL.revokeObjectURL(e.thumbUrl); log('Removed: ' + e.file.name); }
   state.files = state.files.filter(x => x.id !== state.selId);
   state.selId = null; $('btnRemSel').disabled = true;
   rebuildTable(); updateUI();
 });
 
 $('btnClear').addEventListener('click', () => {
+  if (converting) { log('Wait for the conversion to finish first', 'err'); return; }
+  state.files.forEach(e => { if (e.thumbUrl) URL.revokeObjectURL(e.thumbUrl); });
+  prevUrls.forEach(u => URL.revokeObjectURL(u)); prevUrls = [];
   state.files = []; state.selId = null; state.lastBlob = null;
   rebuildTable(); updateUI();
-  $('prevOrig').src = ''; $('prevComp').src = '';
+  $('prevOrig').removeAttribute('src'); $('prevComp').removeAttribute('src');
+  $('prevCard').classList.remove('mobile-show');
   const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'flex';
   $('stStatus').textContent = 'Ready'; $('stStatus').style.color = 'var(--tertiary)';
   log('Cleared', 'info');
 });
 
 $('btnDlAll').addEventListener('click', async () => {
-  const btn = $('btnDlAll'); btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Zipping…';
+  const btn = $('btnDlAll');
+  const doneFiles = state.files.filter(e => e.status === 'done' && e.blob);
+  if (!doneFiles.length) return;
+
+  if (doneFiles.length === 1) {
+    btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Saving…';
+    await dlOne(doneFiles[0].id);
+    btn.disabled = false; updateStats();
+    return;
+  }
+
+  btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Zipping…';
   log('Building ZIP…', 'info');
+  let JSZip;
+  try {
+    JSZip = await ensureJSZip();
+  } catch (e) {
+    btn.disabled = false; updateStats();
+    log('Could not load the ZIP library — check your connection and try again', 'err');
+    return;
+  }
   const zip = new JSZip();
-  for (const entry of state.files) {
-    if (entry.blob) {
-      const ab = await entry.blob.arrayBuffer();
-      zip.file(entry.resolvedName || baseName(entry.file.name) + '.' + extOf(entry.fmt || gFmt()), ab);
-    }
+  for (const entry of doneFiles) {
+    const ab = await (await blobWithAlt(entry.blob, entry)).arrayBuffer();
+    zip.file(entry.resolvedName || baseName(entry.file.name) + '.' + extOf(entry.fmt || gFmt()), ab);
   }
   const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'compressed.zip';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   log('ZIP downloaded · ' + fmtB(blob.size), 'ok');
-  btn.innerHTML = '<span class="mi">download</span> Download ZIP'; btn.disabled = false; updateStats();
+  btn.disabled = false; updateStats();
 });
 
 $('btnCopyLast').addEventListener('click', async () => {
@@ -423,11 +744,26 @@ $('btnCopyLast').addEventListener('click', async () => {
   } catch (e) { log('Clipboard failed — use Chrome or Edge', 'err'); }
 });
 
-
 // ── Alt Text ──
 
 let altEntryId = null;
 let altBusy = false;
+
+const altBackdrop = document.createElement('div');
+altBackdrop.id = 'altBackdrop';
+document.body.appendChild(altBackdrop);
+
+function openAltPanel() {
+  $('altCard').style.display = 'block';
+  altBackdrop.style.display = 'block';
+}
+
+function closeAltPanel() {
+  $('altCard').style.display = 'none';
+  altBackdrop.style.display = 'none';
+}
+
+altBackdrop.addEventListener('click', closeAltPanel);
 
 const altToast = document.createElement('div');
 altToast.className = 'alt-toast';
@@ -478,6 +814,21 @@ function resizeForAlt(file) {
   });
 }
 
+function applyAltToEntry(entry, alt) {
+  entry.altText = alt;
+  if (!entry.outName || entry.autoNamed) {
+    entry.autoNamed = true;
+    const ext = extOf(entry.fmt || gFmt());
+    const newName = slugify(alt, 6);
+    if (newName && newName !== entry.outName) {
+      entry.outName = newName;
+      if (entry.resolvedName) entry.resolvedName = newName + '.' + ext;
+      log('Renamed to match alt text: ' + newName + '.' + ext, 'ok');
+      rebuildTable();
+    }
+  }
+}
+
 async function genAlt(id) {
   if (altBusy) return;
   const e = state.files.find(x => x.id === id);
@@ -486,13 +837,12 @@ async function genAlt(id) {
   altBusy = true;
 
   const btn = $('altBtn-' + id);
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:16px;animation:spin 0.8s linear infinite">sync</span>'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:14px;animation:spin 0.8s linear infinite">sync</span> Alt'; }
 
-  $('altCard').style.display = 'block';
+  openAltPanel();
   $('altLoading').style.display = 'flex';
   $('altResults').style.display = 'none';
   $('altFileName').textContent = e.file.name;
-  setTimeout(() => $('altCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
   try {
     const resized = await resizeForAlt(e.file);
@@ -501,7 +851,7 @@ async function genAlt(id) {
     const res = await fetch('/api/generate-alt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: resized.base64, mediaType: resized.mediaType }),
+      body: JSON.stringify({ image: resized.base64, mediaType: resized.mediaType, altStyle: $('altStyle').value }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Something went wrong.' }));
@@ -509,7 +859,8 @@ async function genAlt(id) {
     }
     const data = await res.json();
     showAltResult(data);
-    log('Alt text generated for ' + e.file.name, 'ok');
+    applyAltToEntry(e, data.alt || '');
+    log('Alt text ready — use Copy to paste it into WordPress or your site', 'ok');
   } catch (err) {
     $('altLoading').style.display = 'none';
     $('altResults').style.display = 'block';
@@ -520,7 +871,7 @@ async function genAlt(id) {
     log('Alt text error: ' + err.message, 'err');
   } finally {
     altBusy = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Alt'; }
+    rebuildTable(); // restores correct Alt button state (icon + done check)
   }
 }
 
@@ -529,7 +880,6 @@ function showAltResult(data) {
   $('altResults').style.display = 'block';
 
   const alt = data.alt || '';
-  const title = data.title || '';
   const chars = alt.length;
   const charColor = chars > 125 ? 'var(--secondary)' : 'var(--tertiary)';
 
@@ -547,9 +897,4 @@ function showAltResult(data) {
     </div>`;
 }
 
-$('btnCloseAlt').addEventListener('click', () => {
-  $('altCard').style.display = 'none';
-});
-
-// ── Init ──
-log('Ready — drop images above to get started', 'info');
+$('btnCloseAlt').addEventListener('click', closeAltPanel);
