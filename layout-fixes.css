@@ -9,15 +9,54 @@
 .file-list::-webkit-scrollbar-thumb { background: rgba(139, 127, 212, .35); border-radius: 4px; }
 .file-list::-webkit-scrollbar-track { background: transparent; }
 
+/* ── Alt panel as floating modal ──
+   It no longer occupies layout space, so it can never push the Settings
+   card around — it floats centered above a dimmed backdrop instead. */
+#altBackdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 18, 0.62);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 900;
+}
+
+#altCard {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%);
+  width: min(460px, 92vw) !important;
+  max-height: min(80vh, 640px);
+  overflow-y: auto;
+  margin: 0 !important;
+  z-index: 901;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .5) !important;
+}
+
+@media (max-width: 480px) {
+  #altCard { top: 46% !important; width: 94vw !important; }
+}
+
+/* Keep alt content readable on the dark backdrop */
+#altCard .alt-disclosure { margin-top: 10px; }
+
+/* ── Download button ready-pulse ──
+   Draws the eye right after conversion finishes. */
+@keyframes ppDlReady {
+  0%   { box-shadow: 0 0 0 0 rgba(90, 215, 142, .55); }
+  70%  { box-shadow: 0 0 0 14px rgba(90, 215, 142, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(90, 215, 142, 0); }
+}
+
+.btn-dl.dl-ready { animation: ppDlReady 1.6s ease-out 3; }
+
 /* ── Tablets & phones: stack the two columns, full-width cards ── */
 @media (max-width: 980px) {
   .app-inner { display: block !important; }
   .col-left,
   .col-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
-
-  /* Order: upload → queue → settings (so Convert/ZIP buttons are reachable early) */
-  .col-left { order: 0; }
-  .col-right { order: 0; }
 }
 
 @media (max-width: 760px) {
