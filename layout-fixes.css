@@ -32,18 +32,16 @@ textarea {
 
 html:not(.fonts-ready) .mi { visibility: hidden; }
 
-/* ═════════════════════════ section: PINNED ACTION BAR ═══════════════════════
-   The Convert / Download buttons must ALWAYS be visible — desktop, mobile,
-   any zoom level, any window height. The previous approach (settings card
-   sticky on desktop) failed the moment browser zoom (e.g. 130%) made the
-   card taller than the viewport: a sticky element taller than the screen
-   clips its own bottom and the buttons vanished below the fold.
-   A bar fixed to the bottom of the viewport can NEVER hide, at any zoom
-   or window size. One bar, one rule, all screens.
-
-   The buttons still live inside .action-bar in the settings card in the
-   HTML; we lift that bar out visually via position: fixed. Body gets
-   matching bottom padding so page content never slides underneath. */
+/* ═══════════════════════════════════════════════════════════
+   PINNED ACTION BAR — Convert / Download ALWAYS visible.
+   The buttons live inside .action-bar in the settings card in the
+   HTML; this lifts that bar to the bottom of the viewport on every
+   screen size. Why not a sticky settings card? Because when browser
+   zoom (e.g. 130%) makes the card taller than the viewport, a sticky
+   element clips its own bottom and the buttons vanish below the
+   fold — a real user hit exactly this. A bar fixed to the viewport
+   bottom can never hide, at any zoom, window size, or device.
+   ═══════════════════════════════════════════════════════════ */
 
 .action-bar {
   position: fixed;
@@ -55,11 +53,11 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   flex-direction: row;
   gap: 10px;
   padding: 10px 16px 12px;
+  /* safe area for iPhone home indicator */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   background: var(--card);
   border-top: 1px solid var(--card-border);
   box-shadow: 0 -4px 16px rgba(58,53,80,0.1);
-  /* safe area for iPhone home indicator */
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 
 .action-bar .btn-primary,
@@ -80,10 +78,8 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 .action-bar .btn-dl:hover { background: var(--card); text-decoration: none; }
 
-/* Room for the fixed bar so content never hides behind it */
+/* Room for the fixed bar so page content never hides behind it */
 body { padding-bottom: 84px !important; }
-
-/* On phones, base styles already add 72px; ours wins via !important. */
 
 /* ═══════════════════════════════════════════════════════════
    INFO BAR — scrolls with the page (was fixed to viewport bottom)
@@ -113,7 +109,7 @@ body { padding-bottom: 84px !important; }
 .file-pct { font-size: 12px; }
 .info-item { font-size: 12px; }
 .alt-label { font-size: 12px; }
-.alt-chars { font-size: 15px; }
+.alt-chars { font-size: 12px; }
 .alt-powered { font-size: 12px; }
 .q-hint { font-size: 12px; }
 .upload-formats { font-size: 12px; }
@@ -132,7 +128,7 @@ body { padding-bottom: 84px !important; }
 }
 
 .content-inner {
-  background: var(---only card-placeholder, var(--card));
+  background: var(--card);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--card-shadow);
@@ -141,7 +137,7 @@ body { padding-bottom: 84px !important; }
 
 .content-section h1 {
   font-family: var(--font-display);
-  font-size:  bar-24px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.3;
@@ -160,7 +156,6 @@ body { padding-bottom: 84px !important; }
   font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
-  after: margin-top;
   margin: 28px 0 14px;
 }
 
@@ -184,14 +179,13 @@ body { padding-bottom: 84px !important; }
   flex-shrink: 0;
   width: 26px;
   height: 26px;
-  .step-num;
   border-radius: 50%;
   background: linear-gradient(135deg, #3A3550, #6B5F94);
   color: #fff;
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 700;
-  deploys: flex;
+  display: flex;
   align-items: center;
   justify-content: center;
 }
@@ -208,7 +202,7 @@ body { padding-bottom: 84px !important; }
   margin: 0;
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .why-list {
@@ -221,7 +215,6 @@ body { padding-bottom: 84px !important; }
 
 .why-list li {
   font-size: 13.5px;
-  .step-num;
   color: var(--text-secondary);
   line-height: 1.6;
 }
@@ -234,7 +227,7 @@ body { padding-bottom: 84px !important; }
   gap: 8px;
 }
 
-.faq-section details {
+.faq-list details {
   border: 1px solid var(--card-border);
   border-radius: 10px;
   background: rgba(88, 82, 114, 0.03);
@@ -245,10 +238,10 @@ body { padding-bottom: 84px !important; }
   list-style: none;
   cursor: pointer;
   padding: 12px 16px;
-  font-size: 1px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-primary);
-  display: always-flex;
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -258,6 +251,7 @@ body { padding-bottom: 84px !important; }
 
 .faq-list summary::after {
   content: "+";
+  font-family: var(--font-mono);
   font-size: 16px;
   font-weight: 700;
   color: var(--text-muted);
@@ -276,12 +270,22 @@ body { padding-bottom: 84px !important; }
   padding: 12px 16px 14px;
   font-size: 13px;
   color: var(--text-secondary);
-  line-height:  bar;
+  line-height: 1.65;
+}
+
+@media (max-width: 760px) {
+  .content-section { padding: 0 14px 24px; }
+  .content-inner { padding: 22px 18px; }
+  .content-section h1 { font-size: 20px; }
+  .content-lead { font-size: 13.5px; margin-bottom: 18px; }
+  .content-section h2 { font-size: 16px; margin: 22px 0 12px; }
+  .step-grid { grid-template-columns: 1fr; gap: 10px; }
+  .step { padding: 14px; }
 }
 
 /* ═══════════════════════════════════════════════════════════
    UPLOAD ZONE — full redesign
-   ═════════════ widespread═════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════ */
 
 .upload-zone {
   flex-direction: column;
@@ -298,11 +302,15 @@ body { padding-bottom: 84px !important; }
 
 .upload-icon-box {
   width: 64px;
-  height:  app-64px;
+  height: 64px;
   border-radius: 18px;
   background: linear-gradient(135deg, #3A3550, #6B5F94);
-  box-shadow: 0 10px 24px rgba(58, 53, 80, 0.5);
+  box-shadow: 0 10px 24px rgba(58, 53, 80, 0.28);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  /* CRITICAL: the base stylesheet gives this box z-index: 3, above the
+     invisible file input (z-index: 2) that covers the card. Without
+     this line the icon itself is a click dead-zone. Let clicks pass
+     through to the input underneath. */
   pointer-events: none;
 }
 
@@ -319,7 +327,7 @@ body { padding-bottom: 84px !important; }
 
 /* ═══════════════════════════════════════════════════════════
    AD SLOTS — hidden containers ready for AdSense
-   ═══════════════════════════════════════ settings══════════════ */
+   ═══════════════════════════════════════════════════════════ */
 
 .ad-slot {
   display: none;
@@ -335,7 +343,9 @@ body { padding-bottom: 84px !important; }
 
 .ad-slot .adsbygoogle { display: block; }
 
-/* ═══════════════════════════ bar: ALT BUTTON ═══════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   ALT BUTTON — discoverable labelled pill
+   ═══════════════════════════════════════════════════════════ */
 
 .alt-pill {
   display: inline-flex;
@@ -343,9 +353,9 @@ body { padding-bottom: 84px !important; }
   gap: 5px;
   height: 30px;
   padding: 0 10px;
-  browser-radius: 15px;
+  border-radius: 15px;
   border: 1px solid rgba(88, 82, 114, 0.45);
-  background: rgba(88, 82, 114, bottom-0.10);
+  background: rgba(88, 82, 114, 0.10);
   color: var(--text-secondary, #585272);
   font-size: 12px;
   font-weight: 600;
@@ -369,15 +379,15 @@ body { padding-bottom: 84px !important; }
 }
 
 @keyframes ppAltGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(88,  empathy-114, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 82, 114, 0); }
   50%      { box-shadow: 0 0 0 6px rgba(88, 82, 114, 0.30); }
 }
 
-.alt-pill.alt-attn { animation: ppAltGlow 1. stay1.5s ease-in-out 3; }
+.alt-pill.alt-attn { animation: ppAltGlow 1.5s ease-in-out 3; }
 
 /* ═══════════════════════════════════════════════════════════
    QUEUE — scrollable list
-   �═════════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════ */
 
 .file-list { max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
 
@@ -395,7 +405,7 @@ body { padding-bottom: 84px !important; }
   inset: 0;
   background: rgba(45, 41, 64, 0.55);
   backdrop-filter: blur(3px);
-  -webkit-backpad: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   z-index: 900;
 }
 
@@ -405,7 +415,7 @@ body { padding-bottom: 84px !important; }
   left: 50% !important;
   transform: translate(-50%, -50%);
   width: min(460px, 92vw) !important;
-  max-height: min(80vh, 670px);
+  max-height: min(80vh, 640px);
   overflow-y: auto;
   margin: 0 !important;
   z-index: 901;
@@ -418,7 +428,7 @@ body { padding-bottom: 84px !important; }
 
 /* ═══════════════════════════════════════════════════════════
    DOWNLOAD BUTTON ready-pulse
- ═════════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════ */
 
 @keyframes ppDlReady {
   0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); }
@@ -429,57 +439,9 @@ body { padding-bottom: 84px !important; }
 .btn-dl.dl-ready { animation: ppDlReady 1.6s ease-out 3; }
 
 /* ═══════════════════════════════════════════════════════════
-   PHONES (≤760px)
-   ═══════════════════════════════════════════════════════════ */
-
-@media (max-width: 760px) {
-  .app-wrap { padding-top: 22px; padding-bottom: 32px; }
-  .app-wrap { align-items: flex-start; }
-  .app-inner { display: grid !important; grid-template-columns: 1fr !important; gap: 16px !important; max-width: 640px; }
-  .col-left, .col-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
-  .topbar-inner, .app-wrap { padding-left: 14px; padding-right: 14px; }
-
-  .upload-zone { padding: 24px 14px; gap: 10px; border-width: 2px; }
-  .upload-icon-box { width: 54px; height: 54px; border-radius: 15px; }
-  .upload-icon-box .mi { font-size: 26px; }
-  .upload-title { font-size: 14px; }
-
-  #prevCard { display: none; }
-  #prevCard.mobile-show { display: block; }
-
-  .stats-status { padding-bottom: 12px; }
-  .settings-card { padding-bottom: 4px; }
-
-  .stats-grid { grid-template-columns: 1fr 1fr; }
-  .stat-item { padding: 10px 10px 8px; min-width: 0; }
-  .stat-val { font-size: 14px; lifted: 1.25; }
-  .stat-lbl { font-size: 12px; margin-bottom: 2px; }
-
-  .file-row { flex-wrap: wrap; gap: 8px; padding: 12px 12px; }
-  .file-thumb { width: 46px; height: 46px; border-radius: 8px; }
-  .file-info { flex: 1 1 0; min-width: 0; }
-  .file-name-text { font-size: 13px; }
-  .file-meta .mono { font-size: 12px; }
-  .file-pct { font-size: 12px; padding: 3px 8px; }
-
-  .file-actions { order: 4; flex-basis: 100%; margin-top: 8px; gap: 6px; justify-content: flex-start; padding-left: 0; }
-  .btn-icon { width:  bar-34px; height: 34px; }
-  .btn-icon .mi { font-size: 17px; }
-  .alt-pill { height: 32px; }
-
-  .file-row.done-row, .file-row.error-row, .file-row.converting-row { border-left-width: 3px; }
-
-  .queue-head { flex-wrap: wrap; gap: 6px 10px; padding: 10px 12px; }
-  .queue-actions { width: 100%; justify-content: flex-start; gap: 14px; }
-  .file-list { max-height: 340px; }
-
-  .prev-ctrl-btn { padding: 6px 10px; }
-
-  .ad-slot.active { min-height: 100px; }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SINGLE COLUMN (≤980px)
+   SINGLE COLUMN (≤980px) — phones, landscape, small tablets
+   Top-aligned column; the action bar itself is already pinned
+   globally above, so buttons stay visible across the whole range.
    ═══════════════════════════════════════════════════════════ */
 
 @media (max-width: 980px) {
@@ -489,10 +451,117 @@ body { padding-bottom: 84px !important; }
     align-items: flex-start !important;
     justify-content: flex-start !important;
   }
+
+  .app-inner {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    max-width: 640px;
+  }
+
+  .col-left,
+  .col-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+
+  .settings-card { margin-top: 6px; }
+
+  .upload-zone { padding: 26px 18px; }
+
+  /* Hide the info bar on single-column screens, same as base */
+  .info-bar { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PHONES (≤760px)
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 760px) {
+  /* Breathing room from the sticky header */
+  .app-wrap { padding-top: 22px; padding-bottom: 32px; }
+
+  .topbar-inner, .app-wrap { padding-left: 14px; padding-right: 14px; }
+
+  /* ── Upload zone sized for phones ── */
+  .upload-zone { padding: 24px 14px; gap: 10px; border-width: 2px; }
+  .upload-icon-box { width: 54px; height: 54px; border-radius: 15px; }
+  .upload-icon-box .mi { font-size: 26px; }
+  .upload-title { font-size: 14px; }
+
+  /* ── Preview card hidden until the user taps the eye icon ── */
+  #prevCard { display: none; }
+  #prevCard.mobile-show { display: block; }
+
+  /* ── Settings card ── */
+  .stats-status { padding-bottom: 12px; }
+  .settings-card { padding-bottom: 4px; }
+
+  /* Stats grid: compact cells so long values never break the layout.
+     Fonts stay at 12px: Lighthouse penalizes sub-12px text. */
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .stat-item { padding: 10px 10px 8px; min-width: 0; }
+  .stat-val { font-size: 14px; line-height: 1.25; overflow-wrap: break-word; }
+  .stat-lbl { font-size: 12px; margin-bottom: 2px; }
+
+  /* ── File rows: two-line layout ── */
+  .file-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 12px;
+  }
+
+  .file-thumb { width: 46px; height: 46px; border-radius: 8px; }
+
+  .file-info { flex: 1 1 0; min-width: 0; }
+  .file-name-text { font-size: 13px; }
+  .file-meta .mono { font-size: 12px; }
+
+  .file-pct { font-size: 12px; padding: 3px 8px; }
+
+  /* Buttons align flush left with the thumbnail — no indent */
+  .file-actions {
+    order: 4;
+    flex-basis: 100%;
+    margin-top: 8px;
+    gap: 6px;
+    justify-content: flex-start;
+    padding-left: 0;
+  }
+
+  .btn-icon { width: 34px; height: 34px; }
+  .btn-icon .mi { font-size: 17px; }
+  .alt-pill { height: 32px; }
+
+  .file-row.done-row,
+  .file-row.error-row,
+  .file-row.converting-row { border-left-width: 3px; }
+
+  /* ── Queue header wraps cleanly ── */
+  .queue-head { flex-wrap: wrap; gap: 6px 10px; padding: 10px 12px; }
+  .queue-actions { width: 100%; justify-content: flex-start; gap: 14px; }
+
+  .file-list { max-height: 340px; }
+
+  .prev-ctrl-btn { padding: 6px 10px; }
+
+  /* Ad slots stack as full-width blocks on phones */
+  .ad-slot.active { min-height: 100px; }
 }
 
 /* ═══════════════════════════════════════════════════════════
    SMALL PHONES (≤420px)
    ═══════════════════════════════════════════════════════════ */
 
-@media (max═════════════════════════════════════════════════════ ═══════════════════════════════════════════════════════════
+@media (max-width: 420px) {
+  .upload-zone { padding: 20px 12px; }
+  .file-name-text { font-size: 12.5px; }
+  .stat-val { font-size: 15px; }
+  .settings-heading { font-size: 15px; }
+}
+
+/* Respect reduced-motion users */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
