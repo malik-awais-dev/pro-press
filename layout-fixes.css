@@ -8,8 +8,33 @@
 html:not(.fonts-ready) .mi { visibility: hidden; }
 
 /* ═══════════════════════════════════════════════════════════
+   SETTINGS CARD — spacing between setting blocks
+   margin/margin (not padding overrides) so base values can only
+   grow, never shrink. Visually: space above each setting-section,
+   space below each chip-group.
+   ═══════════════════════════════════════════════════════════ */
+
+.setting-section { margin-top: 12px; }
+.chip-group { margin-bottom: 10px; }
+
+/* ═══════════════════════════════════════════════════════════
+   LEGIBILITY — Lighthouse SEO font-size audit
+   Text under 12px triggers "Page content is not legible".
+   Bumping the small UI labels to 12px minimum.
+   ═══════════════════════════════════════════════════════════ */
+
+.stat-lbl { font-size: 12px; }
+.file-pct { font-size: 12px; }
+.info-item { font-size: 12px; }
+.alt-label { font-size: 12px; }
+.alt-chars { font-size: 12px; }
+.alt-powered { font-size: 12px; }
+.q-hint { font-size: 12px; }
+.upload-formats { font-size: 12px; }
+.queue-badge { font-size: 12px; }
+
+/* ═══════════════════════════════════════════════════════════
    CONTENT SECTION — SEO copy, how-it-works, FAQ
-   Scoped under .content-section so the base stylesheet is untouched.
    ═══════════════════════════════════════════════════════════ */
 
 .content-section {
@@ -93,7 +118,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 .step p {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.55;
 }
@@ -217,7 +242,6 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 .upload-title { font-size: 15px; }
 .upload-title strong { font-weight: 700; }
-.upload-formats { font-size: 12px; letter-spacing: 0.01em; }
 
 /* ═══════════════════════════════════════════════════════════
    AD SLOTS — hidden containers ready for AdSense
@@ -367,7 +391,6 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   .upload-icon-box { width: 54px; height: 54px; border-radius: 15px; }
   .upload-icon-box .mi { font-size: 26px; }
   .upload-title { font-size: 14px; }
-  .upload-formats { font-size: 11px; }
 
   /* ── Preview card hidden until the user taps the eye icon ── */
   #prevCard { display: none; }
@@ -377,11 +400,12 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   .stats-status { padding-bottom: 12px; }
   .settings-card { padding-bottom: 4px; }
 
-  /* Stats grid: compact cells so long values never break the layout */
+  /* Stats grid: compact cells so long values never break the layout.
+     Fonts stay at 12px: Lighthouse penalizes sub-12px text. */
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .stat-item { padding: 10px 10px 8px; min-width: 0; }
   .stat-val { font-size: 14px; line-height: 1.25; overflow-wrap: break-word; }
-  .stat-lbl { font-size: 10px; margin-bottom: 2px; }
+  .stat-lbl { font-size: 12px; margin-bottom: 2px; }
 
   /* ── File rows: two-line layout ── */
   .file-row {
@@ -394,9 +418,9 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
   .file-info { flex: 1 1 0; min-width: 0; }
   .file-name-text { font-size: 13px; }
-  .file-meta .mono { font-size: 10.5px; }
+  .file-meta .mono { font-size: 12px; }
 
-  .file-pct { font-size: 10.5px; padding: 3px 8px; }
+  .file-pct { font-size: 12px; padding: 3px 8px; }
 
   /* Buttons align flush left with the thumbnail — no indent */
   .file-actions {
@@ -426,7 +450,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   .info-bar { padding: 10px 0; }
   .info-bar-inner { flex-wrap: wrap; justify-content: center; gap: 6px 10px; }
   .info-sep { display: none; }
-  .info-item { font-size: 11px; }
+  .info-item { font-size: 12px; }
 
   .prev-ctrl-btn { padding: 6px 10px; }
 
