@@ -127,14 +127,18 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   STATUS LINE — now lives INSIDE the Queue card (below the file
+   STATUS LINE — lives INSIDE the Queue card (below the file
    list, above the download button) so desktop AND mobile users
    always see Ready / Converting x/y / Done next to their files.
-   It used to sit in the settings card, which on mobile sits far
-   below the queue. Padding aligns it with the queue card sides.
    ═══════════════════════════════════════════════════════════ */
 
 .stats-status { padding: 10px 14px 0; }
+
+/* Mobile: extra bottom padding so the status line keeps clear
+   space above the download area / card edge on phones. */
+@media (max-width: 980px) {
+  .stats-status { padding-bottom: 14px; }
+}
 
 /* ═══════════════════════════════════════════════════════════
    TOASTS ON MOBILE — the narrow right-corner stack looked
@@ -470,10 +474,15 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 .alt-pill.alt-attn { animation: ppAltGlow 1.5s ease-in-out 3; }
 
 /* ═══════════════════════════════════════════════════════════
-   QUEUE — scrollable list
+   QUEUE — scrollable list.
+   NOTE: no `overscroll-behavior` here anymore. The old `contain`
+   trapped finger swipes: once the list hit its top or bottom,
+   the scroll chain stopped dead and the user could NOT scroll
+   the page behind it. Removing it lets swipes hand off to the
+   page naturally — scroll anywhere, any time.
    ═══════════════════════════════════════════════════════════ */
 
-.file-list { max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
+.file-list { max-height: 420px; overflow-y: auto; }
 
 .file-list::-webkit-scrollbar { width: 8px; }
 .file-list::-webkit-scrollbar-thumb { background: rgba(88, 82, 114, 0.30); border-radius: 4px; }
