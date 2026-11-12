@@ -241,6 +241,17 @@
           </div>
         </div>
 
+        <!-- Pinned download bar — mobile position. Desktop hides it via CSS
+             (the Queue download button takes over there). Same downloadAll()
+             handler as the queue button; updateStats() keeps both in sync.
+             MUST exist on every screen: on mobile this is the ONLY download
+             button, and app.js binds to it at load. -->
+        <div class="action-bar">
+          <button class="btn btn-dl btn-block" id="btnDlAll" disabled aria-label="Download all converted images">
+            <span class="mi" style="font-size:16px">download</span> Download ZIP
+          </button>
+        </div>
+
       </div><!-- /settings-card -->
 
       <!-- Alt Text Panel -->
