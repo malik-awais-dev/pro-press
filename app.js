@@ -11,12 +11,41 @@ const gMaxw = () => 0;
 const qMap = [[10, 'Very low — heavy artifacts'], [20, 'Low — visible loss'], [30, 'Low'], [40, 'Fair'], [50, 'Moderate'], [60, 'Moderate'], [70, 'Good'], [80, 'Good — recommended'], [90, 'Excellent'], [95, 'Near lossless'], [100, 'Maximum quality']];
 function qLabel(v) { let r = qMap[0][1]; for (const [k, l] of qMap) if (v >= k) r = l; return r; }
 
+// ── Toasts (log() is now user-visible) ──
+
+(function injectToastStyle() {
+  const s = document.createElement('style');
+  s.textContent = '@keyframes ppToastIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}' +
+    '@keyframes ppBarSlide{0%{margin-left:-35%}100%{margin-left:100%}}';
+  document.head.appendChild(s);
+})();
+
+const toastWrap = document.createElement('div');
+toastWrap.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(340px,86vw);pointer-events:none;';
+document.body.appendChild(toastWrap);
+
+function log(msg, type) {
+  if (!msg) return;
+  const t = document.createElement('div');
+  const accent = type === 'err' ? '#F26D6D' : type === 'ok' ? '#5AD78E' : 'var(--secondary, #8B7FD4)';
+  t.style.cssText = 'pointer-events:auto;padding:10px 14px 10px 12px;border-radius:10px;font-size:12.5px;font-weight:500;line-height:1.45;color:#EDEAF6;background:#262038;border-left:3px solid ' + accent + ';box-shadow:0 8px 28px rgba(0,0,0,.4);animation:ppToastIn .25s ease;';
+  t.textContent = msg;
+  toastWrap.appendChild(t);
+  while (toastWrap.children.length > 4) toastWrap.firstChild.remove();
+  setTimeout(() => {
+    t.style.transition = 'opacity .3s';
+    t.style.opacity = '0';
+    setTimeout(() => t.remove(), 320);
+  }, type === 'err' ? 4200 : 2600);
+}
+
 // ── Quality & Format Controls ──
 
 $('gQ').addEventListener('input', () => {
   const v = parseInt($('gQ').value);
   $('gQout').textContent = v + '%';
   $('qHint').textContent = qLabel(v);
+  applySettingsToPending();
 });
 
 $('gFmt').addEventListener('change', () => {
@@ -24,11 +53,60 @@ $('gFmt').addEventListener('change', () => {
   $('gQ').disabled = p;
   $('gQout').style.opacity = p ? .3 : 1;
   $('qHint').textContent = p ? 'Lossless — quality setting ignored' : qLabel(parseInt($('gQ').value));
+  applySettingsToPending();
 });
 
-// ── Logging ──
+// Settings changes now live-apply to queued (not yet converted) files,
+// instead of being silently frozen at the values captured when files were added.
+function applySettingsToPending() {
+  if (state.editing) return;
+  const fmt = gFmt();
+  const q = parseInt($('gQ').value);
+  let changed = false;
+  state.files.forEach(e => {
+    if (e.status === 'pending' || e.status === 'error') {
+      if (e.fmt !== fmt) { e.fmt = fmt; changed = true; }
+      if (e.quality !== q) { e.quality = q; changed = true; }
+    }
+  });
+  if (changed) rebuildTable();
+}
 
-function log() {}
+// ── Encode support detection (AVIF/WebP are not encodable in every browser) ──
+
+const fmtSupport = { webp: true, avif: true, jpeg: true, png: true };
+
+function detectEncodeSupport(mime) {
+  return new Promise(resolve => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = 2; c.height = 2;
+      c.toBlob(b => resolve(!!(b && b.type === mime)), mime);
+    } catch (e) { resolve(false); }
+  });
+}
+
+(async function detectFormats() {
+  fmtSupport.webp = await detectEncodeSupport('image/webp');
+  fmtSupport.avif = await detectEncodeSupport('image/avif');
+  ['webp', 'avif'].forEach(f => {
+    if (fmtSupport[f]) return;
+    const chip = document.querySelector('#fmtChips .chip[data-val="' + f + '"]');
+    if (chip) {
+      chip.disabled = true;
+      chip.title = 'Not supported in this browser';
+      chip.style.opacity = '.35';
+      chip.style.cursor = 'not-allowed';
+    }
+    const opt = $('gFmt').querySelector('option[value="' + f + '"]');
+    if (opt) opt.disabled = true;
+    if (gFmt() === f) {
+      const fallback = fmtSupport.webp ? 'webp' : (fmtSupport.avif ? 'avif' : 'jpeg');
+      const fbChip = document.querySelector('#fmtChips .chip[data-val="' + fallback + '"]');
+      if (fbChip && typeof setChip === 'function') setChip('gFmt', 'fmtChips', fbChip);
+    }
+  });
+})();
 
 // ── Drop Zone ──
 
@@ -79,6 +157,7 @@ function addFiles(files) {
       setTimeout(showRenameTip, 600);
     }
   } else {
+    if (skip) log('No images added — ' + skip + ' file(s) skipped (unsupported type or over 50 MB)', 'err');
     rebuildTable(); updateUI();
   }
 }
@@ -124,7 +203,7 @@ function rebuildTable() {
       const sign = diff >= 0 ? '−' : '+';
       pctHtml = `<span class="file-pct ${diff >= 0 ? 'pct-done' : 'pct-neg'}">${sign}${pct}%</span>`;
     } else if (e.status === 'converting') {
-      pctHtml = `<span class="file-pct pct-working">50%</span>`;
+      pctHtml = `<span class="file-pct pct-working">…</span>`;
     } else if (e.status === 'pending') {
       pctHtml = `<span class="file-pct pct-wait">—</span>`;
     } else if (e.status === 'error') {
@@ -142,6 +221,11 @@ function rebuildTable() {
     }
     acts += `<button class="btn-icon danger" onclick="event.stopPropagation();removeOne(${e.id})" title="Remove"><span class="mi">close</span></button>`;
 
+    // Honest indeterminate bar while converting (no fake 50%).
+    const progHtml = e.status === 'converting'
+      ? '<div class="file-progress" style="overflow:hidden"><div class="file-progress-bar" style="width:35%;animation:ppBarSlide 1.1s ease-in-out infinite"></div></div>'
+      : '';
+
     card.innerHTML = `
       <div class="file-thumb">${thumbHtml}</div>
       <div class="file-info">
@@ -150,7 +234,7 @@ function rebuildTable() {
           <span class="mi edit-hint">edit</span>
         </div>
         <div class="file-meta"><span class="mono">${metaLine}</span></div>
-        ${e.status === 'converting' ? '<div class="file-progress"><div class="file-progress-bar" style="width:50%"></div></div>' : ''}
+        ${progHtml}
       </div>
       ${pctHtml}
       <div class="file-actions">${acts}</div>`;
@@ -230,6 +314,7 @@ function dlOne(id) {
   const url = URL.createObjectURL(e.blob);
   const a = document.createElement('a'); a.href = url; a.download = e.resolvedName || baseName(e.file.name) + '.' + extOf(e.fmt || gFmt());
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  log('Downloaded: ' + (e.resolvedName || e.file.name), 'ok');
 }
 
 // ── Preview ──
@@ -288,8 +373,7 @@ function convertLabel() {
 
 function updateUI() {
   const any = state.files.length > 0;
-
-const allDone = any && state.files.every(e => e.status === 'done');
+  const allDone = any && state.files.every(e => e.status === 'done');
   const btn = $('btnConvert');
   btn.disabled = !any || allDone;
   btn.innerHTML = convertLabel();
@@ -319,6 +403,13 @@ function updateStats() {
 
 async function compressEntry(entry) {
   return new Promise(resolve => {
+    const f = entry.fmt || gFmt();
+    if (!fmtSupport[f]) {
+      entry.status = 'error';
+      log(f.toUpperCase() + ' encoding not supported in this browser: ' + entry.file.name, 'err');
+      resolve();
+      return;
+    }
     const url = URL.createObjectURL(entry.file);
     const img = new Image();
     img.onload = () => {
@@ -329,7 +420,6 @@ async function compressEntry(entry) {
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      const f = entry.fmt || gFmt();
       const q = f === 'png' ? undefined : entry.quality / 100 || gQ();
       canvas.toBlob(blob => {
         if (!blob) { entry.status = 'error'; log('Error: ' + entry.file.name, 'err'); resolve(); return; }
@@ -351,24 +441,55 @@ async function compressEntry(entry) {
 
 // ── Action Buttons ──
 
+// Convert up to a few images at once (instead of strictly one-by-one).
+const CONVERT_CONCURRENCY = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
+let converting = false;
+
 $('btnConvert').addEventListener('click', async () => {
+  if (converting) return;
   const btn = $('btnConvert');
-  btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Working…';
-  $('stStatus').textContent = 'Converting'; $('stStatus').style.color = 'var(--secondary)';
+  const todo = state.files.filter(e => e.status === 'pending' || e.status === 'error');
+  if (!todo.length) { updateUI(); return; }
+
+  converting = true;
+  btn.disabled = true;
+  $('stStatus').style.color = 'var(--secondary)';
+  const total = todo.length;
+  let finished = 0;
+  let next = 0;
   let autoPreviewDone = false;
-  for (const entry of state.files) {
-    if (entry.status === 'done') continue;
-    entry.status = 'converting'; rebuildTable();
-    await compressEntry(entry);
-    rebuildTable(); updateStats();
-    if (!autoPreviewDone && entry.status === 'done') {
-      openPreview(entry.id);
-      autoPreviewDone = true;
+
+  // Real batch progress: finished / total, on the button and the status line.
+  function setProgress() {
+    btn.innerHTML = '<span class="mi" style="animation:spin 0.8s linear infinite">sync</span> ' + finished + '/' + total;
+    $('stStatus').textContent = 'Converting ' + finished + '/' + total;
+  }
+  setProgress();
+
+  async function worker() {
+    while (next < todo.length) {
+      const entry = todo[next++];
+      entry.status = 'converting';
+      rebuildTable();
+      await compressEntry(entry);
+      finished++;
+      setProgress();
+      rebuildTable(); updateStats();
+      if (!autoPreviewDone && entry.status === 'done') {
+        openPreview(entry.id);
+        autoPreviewDone = true;
+      }
     }
   }
-  btn.innerHTML = convertLabel(); btn.disabled = false;
-  $('stStatus').textContent = 'Done'; $('stStatus').style.color = 'var(--tertiary)';
-  updateStats();
+
+  const lanes = Math.min(CONVERT_CONCURRENCY, todo.length);
+  await Promise.all(Array.from({ length: lanes }, () => worker()));
+
+  converting = false;
+  const anyErr = state.files.some(e => e.status === 'error');
+  $('stStatus').textContent = anyErr ? 'Done — some files failed' : 'Done';
+  $('stStatus').style.color = 'var(--tertiary)';
+  updateUI(); updateStats();
 });
 
 $('btnRemSel').addEventListener('click', () => {
@@ -381,6 +502,7 @@ $('btnRemSel').addEventListener('click', () => {
 });
 
 $('btnClear').addEventListener('click', () => {
+  if (converting) { log('Wait for the conversion to finish first', 'err'); return; }
   state.files = []; state.selId = null; state.lastBlob = null;
   rebuildTable(); updateUI();
   $('prevOrig').src = ''; $('prevComp').src = '';
@@ -423,7 +545,6 @@ $('btnCopyLast').addEventListener('click', async () => {
     btn.innerHTML = '<span class="mi" style="font-size:16px">check</span> Copied!'; setTimeout(() => btn.innerHTML = orig, 1800);
   } catch (e) { log('Clipboard failed — use Chrome or Edge', 'err'); }
 });
-
 
 // ── Alt Text ──
 
@@ -551,6 +672,3 @@ function showAltResult(data) {
 $('btnCloseAlt').addEventListener('click', () => {
   $('altCard').style.display = 'none';
 });
-
-// ── Init ──
-log('Ready — drop images above to get started', 'info');
