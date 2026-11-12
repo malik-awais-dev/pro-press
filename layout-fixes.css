@@ -34,6 +34,11 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   background: linear-gradient(135deg, #3A3550, #6B5F94);
   box-shadow: 0 10px 24px rgba(58, 53, 80, 0.28);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  /* CRITICAL: the base stylesheet gives this box z-index: 3, above the
+     invisible file input (z-index: 2) that covers the card. Without
+     this line the icon itself is a click dead-zone — clicking it did
+     nothing. Let clicks pass through to the input underneath. */
+  pointer-events: none;
 }
 
 .upload-icon-box .mi { font-size: 30px; }
@@ -50,6 +55,9 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 /* ═══════════════════════════════════════════════════════════
    AD SLOTS — hidden containers ready for AdSense
+   To activate later: paste your <ins class="adsbygoogle"> code
+   into the #adSlotMid / #adSlotFooter divs in index.html and
+   add class="active" to the slot div. No other changes needed.
    ═══════════════════════════════════════════════════════════ */
 
 .ad-slot {
