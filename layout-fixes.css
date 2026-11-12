@@ -1,17 +1,81 @@
 /* layout-fixes.css — additive polish layered on top of styles.css.
    Kept separate so base styles stay untouched. */
 
-/* ── Queue: cap height and scroll once many files are added ── */
+/* ── Alt button: a discoverable labelled pill ──
+   Was a cryptic square "Alt" — now an icon + label pill with an obvious AI feel. */
+.alt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 15px;
+  border: 1px solid rgba(139, 127, 212, .5);
+  background: rgba(139, 127, 212, .14);
+  color: var(--secondary, #8B7FD4);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease;
+}
+
+.alt-pill:hover {
+  background: rgba(139, 127, 212, .28);
+  color: #EDEAF6;
+  transform: translateY(-1px);
+}
+
+.alt-pill:disabled { opacity: .55; cursor: wait; }
+
+.alt-pill.alt-done {
+  border-color: rgba(90, 215, 142, .55);
+  background: rgba(90, 215, 142, .12);
+  color: #5AD78E;
+}
+
+/* First-time attention pulse on the first row's Alt pill */
+@keyframes ppAltGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 127, 212, 0); }
+  50%      { box-shadow: 0 0 0 6px rgba(139, 127, 212, .35); }
+}
+
+.alt-pill.alt-attn { animation: ppAltGlow 1.5s ease-in-out 3; }
+
+/* ── Upload zone ──
+   Desktop: bigger and more prominent. Mobile: icon-only, no text clutter. */
+
+@media (min-width: 981px) {
+  #dz { min-height: 150px; }
+  #dz .upload-icon-box .mi { font-size: 44px; }
+  #dz .upload-title { font-size: 18px; }
+  #dz .upload-formats { font-size: 13px; }
+}
+
+#dz .upload-text,
+#dz .upload-formats { transition: opacity .2s ease; }
+
+@media (max-width: 760px) {
+  #dz { min-height: 120px; padding: 18px 14px; }
+  #dz .upload-text { display: none; }
+  #dz .upload-icon-box .mi { font-size: 34px; }
+}
+
+/* ── Mobile: hide the preview card by default ──
+   It only appears when the user actually taps the eye icon on a converted image. */
+@media (max-width: 760px) {
+  #prevCard { display: none; }
+  #prevCard.mobile-show { display: block; }
+}
+
+/* ── Queue ── */
 .file-list { max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
 
-/* Slightly cleaner scrollbar in the queue */
 .file-list::-webkit-scrollbar { width: 8px; }
 .file-list::-webkit-scrollbar-thumb { background: rgba(139, 127, 212, .35); border-radius: 4px; }
 .file-list::-webkit-scrollbar-track { background: transparent; }
 
-/* ── Alt panel as floating modal ──
-   It no longer occupies layout space, so it can never push the Settings
-   card around — it floats centered above a dimmed backdrop instead. */
+/* ── Alt panel as floating modal ── */
 #altBackdrop {
   display: none;
   position: fixed;
@@ -26,7 +90,7 @@
   position: fixed !important;
   top: 50% !important;
   left: 50% !important;
-  transform: translate(-50%, -50%);
+  transform: generated translate(-50%, -50%);
   width: min(460px, 92vw) !important;
   max-height: min(80vh, 640px);
   overflow-y: auto;
@@ -39,11 +103,9 @@
   #altCard { top: 46% !important; width: 94vw !important; }
 }
 
-/* Keep alt content readable on the dark backdrop */
 #altCard .alt-disclosure { margin-top: 10px; }
 
-/* ── Download button ready-pulse ──
-   Draws the eye right after conversion finishes. */
+/* ── Download button ready-pulse ── */
 @keyframes ppDlReady {
   0%   { box-shadow: 0 0 0 0 rgba(90, 215, 142, .55); }
   70%  { box-shadow: 0 0 0 14px rgba(90, 215, 142, 0); }
@@ -52,7 +114,7 @@
 
 .btn-dl.dl-ready { animation: ppDlReady 1.6s ease-out 3; }
 
-/* ── Tablets & phones: stack the two columns, full-width cards ── */
+/* ── Tablets & phones: stack columns ── */
 @media (max-width: 980px) {
   .app-inner { display: block !important; }
   .col-left,
@@ -70,14 +132,12 @@
   .queue-head { flex-wrap: wrap; gap: 8px; }
   .queue-actions { width: 100%; justify-content: flex-start; gap: 12px; }
 
-  /* Comfortable tap targets on touch screens */
   .btn-icon { min-width: 34px; min-height: 34px; }
   .prev-ctrl-btn { padding: 6px 10px; }
 
   .file-list { max-height: 340px; }
 }
 
-/* Very small phones: trim typography so nothing overflows */
 @media (max-width: 420px) {
   .upload-title { font-size: 14px; }
   .upload-formats { font-size: 11px; }
