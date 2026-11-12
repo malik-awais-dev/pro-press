@@ -38,10 +38,18 @@ function ensureJSZip() {
 // card, and the download button's ready-pulse already tell the user
 // everything they need — toasts just repeated the UI and cluttered phones.
 // log() stays as a developer-console trace so failures are still
-// diagnosable in DevTools, but nothing ever renders on screen.
+// diagnosable in DevTools, but nothing renders from here.
+// The ONE on-screen error channel left: when files are rejected outright
+// (not an image, or over 50 MB), the queue status line says so in red —
+// otherwise a dropped file would vanish with no explanation at all.
 function log(msg, type) {
   if (type === 'err') console.error('[pro-press]', msg);
   else console.log('[pro-press]', msg);
+}
+
+function showStatusError(msg) {
+  $('stStatus').textContent = msg;
+  $('stStatus').style.color = 'var(--error, #DC2626)';
 }
 
 // ── Filename slug from alt text (for auto-rename) ──
@@ -259,7 +267,7 @@ function pulseDownloadBtn() {
 
 // ── Alt spotlight ──
 // The moment images land in the queue, their Alt buttons light up: a soft
-// rotating gradient border plus a gently pulsing icon, for about 8 seconds.
+// rotating gradient ring plus a gently pulsing icon, for about 8 seconds.
 // Enough for a new user to feel "there is something here to try", without
 // shouting. It stops for a row the instant that row's Alt button is tapped,
 // and never shows on a row that already has alt text.
@@ -291,7 +299,10 @@ function addFiles(files) {
     spotlightAltButtons();
     autoConvert();
   } else {
-    if (skip) log('No images added — ' + skip + ' file(s) skipped (unsupported type or over 50 MB)', 'err');
+    // Nothing made it in. With toasts gone this MUST still be visible —
+    // otherwise a rejected file disappears with zero explanation. The
+    // queue status line (right under the file list) carries the reason.
+    if (skip) showStatusError(skip + ' not added — image over 50 MB or unsupported type');
     rebuildTable(); updateUI();
   }
 }
