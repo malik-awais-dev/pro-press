@@ -288,7 +288,8 @@ function convertLabel() {
 
 function updateUI() {
   const any = state.files.length > 0;
-  const allDone = any && state.files.every(e => e.status === 'done');
+
+const allDone = any && state.files.every(e => e.status === 'done');
   const btn = $('btnConvert');
   btn.disabled = !any || allDone;
   btn.innerHTML = convertLabel();
@@ -501,7 +502,7 @@ async function genAlt(id) {
     const res = await fetch('/api/generate-alt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: resized.base64, mediaType: resized.mediaType }),
+      body: JSON.stringify({ image: resized.base64, mediaType: resized.mediaType, altStyle: $('altStyle').value }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Something went wrong.' }));
