@@ -2,6 +2,36 @@
    Kept separate so base styles stay untouched. */
 
 /* ═══════════════════════════════════════════════════════════
+   FONT STACK SWAP — Satoshi + JetBrains Mono via Fontshare
+   The old Google Fonts set (Inter, Space Grotesk, Space Mono) is
+   gone from index.html. These rules re-point every font variable the
+   base stylesheet may use, plus body and form controls directly,
+   so nothing falls back to a missing family. Satoshi covers both
+   body and headings; JetBrains Mono covers file sizes and stats.
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --font-body: 'Satoshi', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Satoshi', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Satoshi', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: 'Satoshi', -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.mono,
+.stat-val,
+.file-meta .mono {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════
    ICON FONT GATE — prevent ligature text flash on load
    ═══════════════════════════════════════════════════════════ */
 
