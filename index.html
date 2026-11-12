@@ -35,15 +35,16 @@
   </script>
   <!-- Fonts: Satoshi + JetBrains Mono from Fontshare (lighter than the old
        Inter/Space Grotesk/Space Mono set), icon font still from Google.
-       Satoshi 400 is preloaded because it renders nearly all body text. -->
+       Satoshi 400 is preloaded because it renders nearly all body text.
+       Only 4 preconnects: Lighthouse warns when there are more. The ad CDN
+       (async script) and cdnjs (JSZip lazy-loaded after conversion) don't
+       need early connections. -->
   <link rel="preconnect" href="https://api.fontshare.com"/>
   <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin="anonymous"/>
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/>
   <link rel="preload" href="https://cdn.fontshare.com/wf/TTX2Z3BF3P6Y5BQT3IV2VNOK6FL22KUT/7QYRJOI3JIMYHGY6CH7SOIFRQLZOLNJ6/KFIAZD4RUMEZIYV6FQ3T3GP5PDBDB6JY.woff2" as="font" type="font/woff2" crossorigin/>
-  <link href="https://api.fontshare.com/v2/css?display=swap&f[]=satoshi@400,500,600,700&f[]=jet-brains-mono@400,700" rel="stylesheet"/>
+  <link href="https://api.fontshare.com/v2/css?display=swap&amp;f[]=satoshi@400,500,600,700&amp;f[]=jet-brains-mono@400,700" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"/>
   <link href="styles.css" rel="stylesheet"/>
   <link href="layout-fixes.css" rel="stylesheet"/>
