@@ -26,32 +26,49 @@ module.exports = async (req, res) => {
 
     // ---- Provider 1: Google Gemini (free tier) ----
     const geminiKey = process.env.GEMINI_API_KEY;
+    let geminiError = null;
     if (geminiKey) {
       try {
         const alt = await callGemini(geminiKey, prompt, image, mediaType);
         if (alt) return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'gemini' });
       } catch (err) {
-        console.error('Gemini failed, falling back to AshnaAI:', err.message);
+        geminiError = err.message;
+        console.error('Gemini failed:', geminiError);
       }
+    } else {
+      geminiError = 'GEMINI_API_KEY env var is NOT present in this deployment build';
     }
 
     // ---- Provider 2: AshnaAI (fallback) ----
     const ashnaKey = process.env.ASHNA_API_KEY;
-    if (!ashnaKey) {
-      return res.status(500).json({ error: 'No AI provider configured. Add GEMINI_API_KEY (free) in your hosting environment variables.' });
+    let ashnaError = null;
+    if (ashnaKey) {
+      try {
+        const alt = await callAshna(ashnaKey, prompt, image, mediaType);
+        return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'ashna' });
+      } catch (err) {
+        ashnaError = err.message;
+      }
+    } else {
+      ashnaError = 'ASHNA_API_KEY env var is NOT present in this deployment build';
     }
-    const alt = await callAshna(ashnaKey, prompt, image, mediaType);
-    return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'ashna' });
+
+    // Both providers failed or unconfigured - report both so we can diagnose.
+    return res.status(502).json({ error: 'Gemini: ' + geminiError + ' || AshnaAI: ' + ashnaError });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message || 'Alt text generation failed' });
   }
 };
 
 async function callGemini(key, prompt, imageBase64, mediaType) {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(key);
+  // AQ.* auth keys must be sent as a header, not as a ?key= query parameter.
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
   const apiRes = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': key
+    },
     body: JSON.stringify({
       contents: [{
         role: 'user',
@@ -65,7 +82,7 @@ async function callGemini(key, prompt, imageBase64, mediaType) {
   if (!apiRes.ok) {
     const detail = await apiRes.text().catch(() => '');
     const err = new Error('Gemini API returned ' + apiRes.status + ' - ' + String(detail).slice(0, 300));
-    err.status = apiRes.status === 429 ? 429 : 502;
+    err.status = apiRes.status;
     throw err;
   }
   const data = await apiRes.json();
@@ -95,7 +112,7 @@ async function callAshna(key, prompt, imageBase64, mediaType) {
   });
   if (!apiRes.ok) {
     const detail = await apiRes.text().catch(() => '');
-    const err = new Error('AI provider returned ' + apiRes.status + ' - ' + String(detail).slice(0, 300));
+    const err = new Error('API returned ' + apiRes.status + ' - ' + String(detail).slice(0, 300));
     err.status = apiRes.status;
     throw err;
   }
