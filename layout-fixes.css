@@ -107,6 +107,79 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 /* ═══════════════════════════════════════════════════════════
+   STATS GRID — compact results strip
+   Tightly packed cells, small mono values, thin dividers.
+   Reads as one tidy summary bar instead of four fat boxes.
+   ═══════════════════════════════════════════════════════════ */
+
+.stats-grid { gap: 0; }
+
+.stat-item { padding: 10px 12px 8px; min-width: 0; }
+
+.stat-lbl { font-size: 12px; margin-bottom: 1px; }
+
+.stat-val {
+  font-size: 13px;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
+
+/* Status line never touches the card edge below it (works on every
+   screen — this used to live only in the phone media query). */
+.stats-status { padding-bottom: 12px; }
+
+/* ═══════════════════════════════════════════════════════════
+   PREVIEW CARD — hidden by default on EVERY small screen, shown
+   only when the user taps the eye (Preview) icon, which adds
+   .mobile-show via JS. Single-column starts at ≤980px, so the
+   hide rule must cover that whole range — at ≤760px only, the
+   card was visible on tablets/landscape where it has no place.
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 980px) {
+  #prevCard { display: none; }
+  #prevCard.mobile-show { display: block; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FILE ROW ACTIONS — pair Download + Alt as one CTA group
+   Preview (eye) stands alone; Download and its neighbour Alt
+   sit in a tight pill cluster so the two things a user does
+   with a finished image read as one unit.
+   ═══════════════════════════════════════════════════════════ */
+
+.file-actions { gap: 6px; }
+
+.file-cta-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(88, 82, 114, 0.06);
+  border: 1px solid var(--card-border);
+  border-radius: 17px;
+  padding: 2px;
+}
+
+/* Inside the cluster the pill loses its own border — the cluster
+   is the pill now, so it reads as ONE "download + alt" control. */
+.file-cta-group .alt-pill {
+  border: none;
+  background: transparent;
+  height: 28px;
+  padding: 0 9px;
+}
+
+.file-cta-group .alt-pill:hover {
+  background: rgba(88, 82, 114, 0.14);
+  transform: none;
+}
+
+.file-cta-group .alt-pill.alt-done {
+  background: var(--success-light, #f0fdf4);
+  color: var(--success, #16a34a);
+}
+
+/* ═══════════════════════════════════════════════════════════
    INFO BAR — scrolls with the page (was fixed to viewport bottom)
    ═══════════════════════════════════════════════════════════ */
 
@@ -130,7 +203,6 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
    LEGIBILITY — 12px minimum fonts (Lighthouse SEO audit)
    ═══════════════════════════════════════════════════════════ */
 
-.stat-lbl { font-size: 12px; }
 .file-pct { font-size: 12px; }
 .info-item { font-size: 12px; }
 .alt-label { font-size: 12px; }
@@ -511,20 +583,13 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   .upload-icon-box .mi { font-size: 26px; }
   .upload-title { font-size: 14px; }
 
-  /* ── Preview card hidden until the user taps the eye icon ── */
-  #prevCard { display: none; }
-  #prevCard.mobile-show { display: block; }
-
   /* ── Settings card ── */
-  .stats-status { padding-bottom: 12px; }
   .settings-card { padding-bottom: 4px; }
 
-  /* Stats grid: compact cells so long values never break the layout.
-     Fonts stay at 12px: Lighthouse penalizes sub-12px text. */
+  /* Stats grid on phones: 2×2 so values never break the layout.
+     Compact cells; fonts stay ≥12px (Lighthouse legibility). */
   .stats-grid { grid-template-columns: 1fr 1fr; }
-  .stat-item { padding: 10px 10px 8px; min-width: 0; }
-  .stat-val { font-size: 14px; line-height: 1.25; overflow-wrap: break-word; }
-  .stat-lbl { font-size: 12px; margin-bottom: 2px; }
+  .stat-item { padding: 8px 10px 6px; }
 
   /* ── File rows: two-line layout ── */
   .file-row {
@@ -553,7 +618,9 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
   .btn-icon { width: 34px; height: 34px; }
   .btn-icon .mi { font-size: 17px; }
+  .file-cta-group { height: 38px; }
   .alt-pill { height: 32px; }
+  .file-cta-group .alt-pill { height: 30px; }
 
   .file-row.done-row,
   .file-row.error-row,
@@ -578,7 +645,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 @media (max-width: 420px) {
   .upload-zone { padding: 20px 12px; }
   .file-name-text { font-size: 12.5px; }
-  .stat-val { font-size: 15px; }
+  .stat-val { font-size: 13.5px; }
   .settings-heading { font-size: 15px; }
 }
 
