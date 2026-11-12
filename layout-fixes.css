@@ -33,16 +33,35 @@ textarea {
 html:not(.fonts-ready) .mi { visibility: hidden; }
 
 /* ═══════════════════════════════════════════════════════════
-   PINNED ACTION BAR — Convert / Download ALWAYS visible.
-   The buttons live inside .action-bar in the settings card in the
-   HTML; this lifts that bar to the bottom of the viewport on every
-   screen size. Why not a sticky settings card? Because when browser
-   zoom (e.g. 130%) makes the card taller than the viewport, a sticky
-   element clips its own bottom and the buttons vanish below the
-   fold — a real user hit exactly this. A bar fixed to the viewport
-   bottom can never hide, at any zoom, window size, or device.
+   DOWNLOAD — one action, two placements, one rule each.
+   Desktop: the Download button sits at the bottom of the Queue
+   card (where the files are). Mobile: the same button is hidden
+   and the pinned bottom bar takes over — a bar fixed to the
+   viewport bottom can never hide at any zoom or window size
+   (the 130% zoom bug was exactly a sticky/fold problem).
+   Both run the same handler, both show the same state.
    ═══════════════════════════════════════════════════════════ */
 
+/* Shared look for both download buttons */
+.queue-dl-row { padding: 0 12px 12px; }
+.queue-dl-row .btn-dl {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 20px;
+  border-radius: 10px;
+  border: 1.5px solid var(--card-border);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+.queue-dl-row .btn-dl:hover { background: var(--card); text-decoration: none; }
+.queue-dl-row .btn-dl:disabled { opacity: 0.35; }
+
+/* The pinned bar — mobile only (hidden on desktop) */
 .action-bar {
   position: fixed;
   bottom: 0;
@@ -50,7 +69,6 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   right: 0;
   z-index: 95;
   display: flex;
-  flex-direction: row;
   gap: 10px;
   padding: 10px 16px 12px;
   /* safe area for iPhone home indicator */
@@ -60,26 +78,33 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   box-shadow: 0 -4px 16px rgba(58,53,80,0.1);
 }
 
-.action-bar .btn-primary,
-.action-bar .btn-dl { flex: 1; margin: 0; width: auto; }
-
 .action-bar .btn-dl {
+  flex: 1;
+  margin: 0;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border: 1.5px solid var(--card-border);
   border-radius: 10px;
   padding: 12px 20px;
   font-size: 14px;
   background: var(--bg);
   color: var(--text-primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
 }
-
 .action-bar .btn-dl:hover { background: var(--card); text-decoration: none; }
 
-/* Room for the fixed bar so page content never hides behind it */
-body { padding-bottom: 84px !important; }
+/* Desktop (≥981px): queue button visible, pinned bar hidden */
+@media (min-width: 981px) {
+  .action-bar { display: none; }
+}
+
+/* Mobile/tablet (≤980px): pinned bar visible, queue button hidden */
+@media (max-width: 980px) {
+  .queue-dl-row { display: none; }
+  body { padding-bottom: 84px !important; }
+}
 
 /* ═══════════════════════════════════════════════════════════
    INFO BAR — scrolls with the page (was fixed to viewport bottom)
@@ -440,8 +465,8 @@ body { padding-bottom: 84px !important; }
 
 /* ═══════════════════════════════════════════════════════════
    SINGLE COLUMN (≤980px) — phones, landscape, small tablets
-   Top-aligned column; the action bar itself is already pinned
-   globally above, so buttons stay visible across the whole range.
+   Top-aligned column; the pinned download bar handles the
+   always-visible guarantee across the whole range.
    ═══════════════════════════════════════════════════════════ */
 
 @media (max-width: 980px) {
