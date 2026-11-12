@@ -38,10 +38,34 @@ textarea {
 html:not(.fonts-ready) .mi { visibility: hidden; }
 
 /* ═══════════════════════════════════════════════════════════
+   INFO BAR — no longer glued to the viewport. It now scrolls with
+   the page like normal content. The log drawer and toast used to
+   hover above the old fixed bar, so they move down too.
+   ═══════════════════════════════════════════════════════════ */
+
+.info-bar {
+  position: static;
+  height: auto;
+  padding: 12px 0;
+}
+
+.log-drawer { bottom: 0; }
+.alt-toast { bottom: 24px; }
+
+/* ═══════════════════════════════════════════════════════════
+   DESKTOP (≥981px) — pin the settings card. The stats (results) and
+   the Convert / Download buttons stay visible while a long queue
+   scrolls in the left column. The column must stretch to the full
+   grid row height, otherwise sticky has no room to move in.
+   ═══════════════════════════════════════════════════════════ */
+
+@media (min-width: 981px) {
+  .col-right { align-self: stretch; }
+  .settings-card { position: sticky; top: 64px; }
+}
+
+/* ═══════════════════════════════════════════════════════════
    SETTINGS CARD — spacing between setting blocks
-   margin/margin (not padding overrides) so base values can only
-   grow, never shrink. Visually: space above each setting-section,
-   space below each chip-group.
    ═══════════════════════════════════════════════════════════ */
 
 .setting-section { margin-top: 12px; }
@@ -50,7 +74,6 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 /* ═══════════════════════════════════════════════════════════
    LEGIBILITY — Lighthouse SEO font-size audit
    Text under 12px triggers "Page content is not legible".
-   Bumping the small UI labels to 12px minimum.
    ═══════════════════════════════════════════════════════════ */
 
 .stat-lbl { font-size: 12px; }
@@ -387,10 +410,25 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 .btn-dl.dl-ready { animation: ppDlReady 1.6s ease-out 3; }
 
 /* ═══════════════════════════════════════════════════════════
-   TABLETS — single column, keep grid gap
-   ═══════════════════════════════════════════════════════════ */
+   SINGLE COLUMN (≤980px) — phones, landscape, small tablets
+   ═══════════════════════════════════════════════════════════
+
+   BUG FIX: the base stylesheet's mobile treatment (flex-start,
+   fixed action bar, hidden info bar) only applies at ≤820px, but
+   single-column starts at 981px. Between 821 and 980 — phones in
+   landscape, narrow tablets — the centered flex container clipped
+   the page top/bottom and Convert/Download sat below an
+   unreachable fold. Apply the safe treatment across the whole
+   single-column range so the buttons are ALWAYS visible. */
 
 @media (max-width: 980px) {
+  .app-wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+
   .app-inner {
     display: grid !important;
     grid-template-columns: 1fr !important;
@@ -404,6 +442,30 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   .settings-card { margin-top: 6px; }
 
   .upload-zone { padding: 26px 18px; }
+
+  /* Hide the (now static) info bar on single-column screens, same as base */
+  .info-bar { display: none; }
+
+  /* Room for the fixed action bar at the bottom */
+  body { padding-bottom: 76px; }
+
+  /* Convert / Download pinned to the bottom of the viewport */
+  .action-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
+    flex-direction: row; gap: 10px;
+    padding: 10px 16px 12px;
+    background: var(--card);
+    border-top: 1px solid var(--card-border);
+    box-shadow: 0 -4px 16px rgba(58,53,80,0.1);
+  }
+  .action-bar .btn-primary,
+  .action-bar .btn-dl { flex: 1; margin: 0; width: auto; }
+  .action-bar .btn-dl {
+    border: 1.5px solid var(--card-border);
+    border-radius: 10px; padding: 12px 20px; font-size: 14px;
+    background: var(--bg); color: var(--text-primary);
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -412,7 +474,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 @media (max-width: 760px) {
   /* Breathing room from the sticky header */
-  .app-wrap { padding-top: 22px; padding-bottom: 32px; align-items: flex-start; }
+  .app-wrap { padding-top: 22px; padding-bottom: 32px; }
 
   .topbar-inner, .app-wrap { padding-left: 14px; padding-right: 14px; }
 
@@ -475,12 +537,6 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   .queue-actions { width: 100%; justify-content: flex-start; gap: 14px; }
 
   .file-list { max-height: 340px; }
-
-  /* ── Footer info bar ── */
-  .info-bar { padding: 10px 0; }
-  .info-bar-inner { flex-wrap: wrap; justify-content: center; gap: 6px 10px; }
-  .info-sep { display: none; }
-  .info-item { font-size: 12px; }
 
   .prev-ctrl-btn { padding: 6px 10px; }
 
