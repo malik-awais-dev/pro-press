@@ -42,8 +42,10 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
    Both run the same handler, both show the same state.
    ═══════════════════════════════════════════════════════════ */
 
-/* Shared look for both download buttons */
-.queue-dl-row { padding: 0 12px 12px; }
+/* Shared look for both download buttons.
+   Top padding (12px) keeps the button clear of the status line
+   that now lives directly above it inside the queue card. */
+.queue-dl-row { padding: 12px; }
 .queue-dl-row .btn-dl {
   width: 100%;
   display: inline-flex;
@@ -124,9 +126,32 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   overflow-wrap: break-word;
 }
 
-/* Status line never touches the card edge below it (works on every
-   screen — this used to live only in the phone media query). */
-.stats-status { padding-bottom: 12px; }
+/* ═══════════════════════════════════════════════════════════
+   STATUS LINE — now lives INSIDE the Queue card (below the file
+   list, above the download button) so desktop AND mobile users
+   always see Ready / Converting x/y / Done next to their files.
+   It used to sit in the settings card, which on mobile sits far
+   below the queue. Padding aligns it with the queue card sides.
+   ═══════════════════════════════════════════════════════════ */
+
+.stats-status { padding: 10px 14px 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   TOASTS ON MOBILE — the narrow right-corner stack looked
+   cramped and overlapped the sticky header on phones. On
+   ≤760px the toast container (#ppToastWrap, created in app.js)
+   spans nearly full width and drops below the 52px top bar.
+   The !important overrides the inline styles app.js sets.
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 760px) {
+  #ppToastWrap {
+    top: 62px !important;
+    left: 10px !important;
+    right: 10px !important;
+    max-width: none !important;
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════
    PREVIEW CARD — hidden by default on EVERY small screen, shown
