@@ -487,6 +487,13 @@ const prevSteps = [200, 320, 440, 560];
 // pair — repeated eye-icon clicks no longer leak two blobs per click.
 let prevUrls = [];
 
+// True desktop = two-column layout (981px+). A phone in landscape is ~850px
+// wide, which is NOT desktop even though it passes a naive innerWidth > 760
+// check — that check auto-opened the preview on landscape phones even though
+// the CSS hides the card on every small screen. Match the CSS breakpoint
+// exactly so JS and CSS agree on what "desktop" means.
+const isDesktopLayout = () => window.matchMedia('(min-width: 981px)').matches;
+
 function openPreview(id) {
   const e = state.files.find(x => x.id === id); if (!e || !e.blob) return;
   // On mobile the preview card is hidden by default (CSS); reveal it on demand.
@@ -656,9 +663,11 @@ async function runConversion() {
       finished++;
       setProgress();
       rebuildTable(); updateStats();
-      // Auto-open the preview only on desktop — on phones the card stays
-      // hidden until the user taps the eye icon, keeping the queue in focus.
-      if (!autoPreviewDone && entry.status === 'done' && window.innerWidth > 760) {
+      // Auto-open the preview ONLY on the true desktop layout. On phones and
+      // tablets the card stays hidden until the user taps the eye icon —
+      // isDesktopLayout() matches the CSS breakpoint exactly, so a phone in
+      // landscape (~850px) no longer slips through a naive width check.
+      if (!autoPreviewDone && entry.status === 'done' && isDesktopLayout()) {
         openPreview(entry.id);
         autoPreviewDone = true;
       }
