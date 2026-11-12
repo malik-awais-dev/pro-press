@@ -120,6 +120,12 @@
         <div class="file-list" id="fileBody" role="list" aria-label="Image file list">
           <div class="empty-hint">No images yet. Drop files or browse above</div>
         </div>
+        <!-- Status line lives with the Queue now (not in Settings) so desktop
+             AND mobile users see Ready / Converting / Done next to the files. -->
+        <div class="stats-status">
+          <span class="stats-status-dot"></span>
+          <span id="stStatus">Ready</span>
+        </div>
         <!-- Download under Queue (desktop position; on mobile this hides and
              the pinned bottom download bar takes over — same handler) -->
         <div class="queue-dl-row">
@@ -233,18 +239,6 @@
             <span class="stat-lbl">Saved</span>
             <span class="stat-val green" id="stSaved">—</span>
           </div>
-        </div>
-        <div class="stats-status">
-          <span class="stats-status-dot"></span>
-          <span id="stStatus">Ready</span>
-        </div>
-
-        <!-- Pinned download bar (mobile position; on desktop this hides and the
-             queue download button takes over — same handler) -->
-        <div class="action-bar">
-          <button class="btn btn-dl btn-block" id="btnDlAll" disabled aria-label="Download all converted images">
-            <span class="mi" style="font-size:16px">download</span> Download ZIP
-          </button>
         </div>
 
       </div><!-- /settings-card -->
