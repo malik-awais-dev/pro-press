@@ -23,7 +23,7 @@ function ensureJSZip() {
   if (!jsZipPromise) {
     jsZipPromise = new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.2/jszip.min.js';
       s.onload = () => window.JSZip ? resolve(window.JSZip) : reject(new Error('ZIP library unavailable'));
       s.onerror = () => { jsZipPromise = null; reject(new Error('Could not download the ZIP library')); };
       document.head.appendChild(s);
