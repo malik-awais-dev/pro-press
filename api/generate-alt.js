@@ -1,3 +1,12 @@
+// Alt text generator - uses the official AshnaAI API (OpenAI-compatible)
+// The ASHNA_API_KEY lives in the hosting platform env vars, never in code.
+const STYLES = {
+  concise: 'Write a concise alt text (under 125 characters) describing the essential content of this image.',
+  detailed: 'Write a detailed alt text describing this image: key objects, colors, setting, and mood.',
+  seo: 'Write SEO-friendly alt text for this image: descriptive, natural, and including relevant keywords.',
+  ecommerce: 'Write e-commerce product alt text for this image: name the product and highlight key features and use context.'
+};
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -7,40 +16,42 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { image, mediaType } = req.body;
+    const body = req.body || {};
+    const image = body.image;
+    const mediaType = body.mediaType;
+    const altStyle = body.altStyle;
     if (!image || !mediaType) return res.status(400).json({ error: 'Missing image data' });
 
-    const signRes = await fetch('https://www.tailwindapp.com/marketing/api/generate-temp-signed-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mimeType: mediaType }),
-    });
-    if (!signRes.ok) throw new Error('Tailwind sign URL failed: ' + await signRes.text());
-    const { signedUrl, cdnUrl } = await signRes.json();
+    const prompt = (STYLES[altStyle] || STYLES.concise) + ' Return only the alt text itself.';
 
-    const imageBuffer = Buffer.from(image, 'base64');
-    const s3Res = await fetch(signedUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': mediaType, 'x-amz-acl': 'public-read', 'x-amz-storage-class': 'STANDARD' },
-      body: imageBuffer,
-    });
-    if (!s3Res.ok) throw new Error('S3 upload failed: ' + await s3Res.text());
-
-    const genRes = await fetch('https://www.tailwindapp.com/marketing/tools/image-alt-text-generator/api/generate', {
+    const apiRes = await fetch('https://api.ashna.ai/v1/api/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Origin': 'https://www.tailwindapp.com',
-        'Referer': 'https://www.tailwindapp.com/marketing/tools/image-alt-text-generator',
+        'Authorization': 'Bearer ' + process.env.ASHNA_API_KEY,
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ imageUrl: cdnUrl }),
+      body: JSON.stringify({
+        model: 'glm-5.3-flash',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: 'data:' + mediaType + ';base64,' + image } }
+            ]
+          }
+        ]
+      })
     });
-    if (!genRes.ok) throw new Error('Tailwind generate failed: ' + await genRes.text());
-    const data = await genRes.json();
+    if (!apiRes.ok) throw new Error('Upstream error ' + apiRes.status);
 
-    const alt = data.altText || '';
-    return res.status(200).json({ alt, title: alt, caption: '' });
+    const data = await apiRes.json();
+    const choice = data.choices && data.choices[0];
+    const alt = ((choice && choice.message && choice.message.content) || '').trim();
+    if (!alt) throw new Error('Empty response');
+
+    return res.status(200).json({ alt: alt, title: alt, caption: '' });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Alt text is temporarily unavailable. Please try again.' });
   }
 };
