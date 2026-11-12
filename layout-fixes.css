@@ -1,0 +1,53 @@
+/* layout-fixes.css — additive polish layered on top of styles.css.
+   Kept separate so base styles stay untouched. */
+
+/* ── Queue: cap height and scroll once many files are added ── */
+.file-list { max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
+
+/* Slightly cleaner scrollbar in the queue */
+.file-list::-webkit-scrollbar { width: 8px; }
+.file-list::-webkit-scrollbar-thumb { background: rgba(139, 127, 212, .35); border-radius: 4px; }
+.file-list::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Tablets & phones: stack the two columns, full-width cards ── */
+@media (max-width: 980px) {
+  .app-inner { display: block !important; }
+  .col-left,
+  .col-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+
+  /* Order: upload → queue → settings (so Convert/ZIP buttons are reachable early) */
+  .col-left { order: 0; }
+  .col-right { order: 0; }
+}
+
+@media (max-width: 760px) {
+  .topbar-inner, .app-inner { padding-left: 14px; padding-right: 14px; }
+
+  .info-bar { padding: 10px 0; }
+  .info-bar-inner { flex-wrap: wrap; justify-content: center; gap: 6px 10px; }
+  .info-sep { display: none; }
+  .info-item { font-size: 11px; }
+
+  .queue-head { flex-wrap: wrap; gap: 8px; }
+  .queue-actions { width: 100%; justify-content: flex-start; gap: 12px; }
+
+  /* Comfortable tap targets on touch screens */
+  .btn-icon { min-width: 34px; min-height: 34px; }
+  .prev-ctrl-btn { padding: 6px 10px; }
+
+  .file-list { max-height: 340px; }
+}
+
+/* Very small phones: trim typography so nothing overflows */
+@media (max-width: 420px) {
+  .upload-title { font-size: 14px; }
+  .upload-formats { font-size: 11px; }
+  .file-name-text { font-size: 13px; }
+  .file-meta { font-size: 11px; }
+  .stat-val { font-size: 13px; }
+}
+
+/* Respect reduced-motion users */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
