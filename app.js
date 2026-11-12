@@ -27,8 +27,8 @@ document.body.appendChild(toastWrap);
 function log(msg, type) {
   if (!msg) return;
   const t = document.createElement('div');
-  const accent = type === 'err' ? '#F26D6D' : type === 'ok' ? '#5AD78E' : 'var(--secondary, #8B7FD4)';
-  t.style.cssText = 'pointer-events:auto;padding:10px 14px 10px 12px;border-radius:10px;font-size:12.5px;font-weight:500;line-height:1.45;color:#EDEAF6;background:#262038;border-left:3px solid ' + accent + ';box-shadow:0 8px 28px rgba(0,0,0,.4);animation:ppToastIn .25s ease;';
+  const accent = type === 'err' ? '#DC2626' : type === 'ok' ? '#16A34A' : 'var(--secondary, #8B7FD4)';
+  t.style.cssText = 'pointer-events:auto;padding:10px 14px 10px 12px;border-radius:10px;font-size:12.5px;font-weight:500;line-height:1.45;color:#2d2940;background:#F4EFF3;border-left:3px solid ' + accent + ';box-shadow:0 8px 28px rgba(58,53,80,0.18);animation:ppToastIn .25s ease;';
   t.textContent = msg;
   toastWrap.appendChild(t);
   while (toastWrap.children.length > 4) toastWrap.firstChild.remove();
@@ -389,7 +389,7 @@ function startInlineRename(id, card) {
   nameEl.appendChild(input);
 
   const extSpan = document.createElement('span');
-  extSpan.style.cssText = 'color:var(--outline);font-weight:400;font-size:14px;flex-shrink:0';
+  extSpan.style.cssText = 'color:var(--text-muted);font-weight:400;font-size:14px;flex-shrink:0';
   extSpan.textContent = '.' + ext;
   nameEl.appendChild(extSpan);
 
@@ -602,7 +602,9 @@ $('btnConvert').addEventListener('click', async () => {
       finished++;
       setProgress();
       rebuildTable(); updateStats();
-      if (!autoPreviewDone && entry.status === 'done') {
+      // Auto-open the preview only on desktop — on phones the card stays
+      // hidden until the user taps the eye icon, keeping the queue in focus.
+      if (!autoPreviewDone && entry.status === 'done' && window.innerWidth > 760) {
         openPreview(entry.id);
         autoPreviewDone = true;
       }
