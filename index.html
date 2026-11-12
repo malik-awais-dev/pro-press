@@ -10,7 +10,6 @@
   <meta name="robots" content="index, follow"/>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9510743581652071"
      crossorigin="anonymous"></script>
-  <link rel="meta-tag" content="true"/>
   <meta name="theme-color" content="#3A3550"/>
   <link rel="canonical" href="https://pro-press.app/"/>
   <meta property="og:type" content="website"/>
@@ -26,11 +25,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"/>
   <link href="styles.css" rel="stylesheet"/>
   <link href="layout-fixes.css" rel="stylesheet"/>
 </head>
 <body>
+<script>
+// Gate icon glyphs until the Material Symbols font is really loaded, so the
+// raw ligature words ("upload", "bolt", "close"...) never flash as text.
+document.fonts.load('20px "Material Symbols Outlined"').then(function () {
+  document.documentElement.classList.add('fonts-ready');
+});
+</script>
 
 <!-- Header -->
 <header class="topbar">
@@ -48,7 +54,7 @@
     <!-- Left Column -->
     <div class="col-left">
 
-      <!-- Upload Zone (compact horizontal) -->
+      <!-- Upload Zone -->
       <div class="upload-zone card" id="dz" aria-label="Image upload area">
         <input type="file" id="fi" multiple accept="image/*" aria-label="Select image files">
         <div class="upload-icon-box">
