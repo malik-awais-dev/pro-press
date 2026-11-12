@@ -148,7 +148,27 @@
             <span class="slider-val" id="gQout">80%</span>
           </div>
           <input type="range" id="gQ" min="10" max="100" step="1" value="80" aria-label="Compression quality">
-          <div class="q-hint" id="qHint">Balanced — recommended</div>
+          <div class="q-hint" id="qHint">Good — recommended</div>
+        </div>
+
+        <!-- Resize (max width) -->
+        <select id="gMaxw" class="hidden-select" aria-label="Maximum output width">
+          <option value="0">Original size</option>
+          <option value="1920">1920px</option>
+          <option value="1280">1280px</option>
+          <option value="800">800px</option>
+          <option value="600">600px</option>
+        </select>
+        <div class="setting-section">
+          <span class="setting-label">Resize (max width)</span>
+          <div class="chip-group" id="mwChips">
+            <button class="chip active" data-val="0" onclick="setChip('gMaxw','mwChips',this)">Original</button>
+            <button class="chip" data-val="1920" onclick="setChip('gMaxw','mwChips',this)">1920px</button>
+            <button class="chip" data-val="1280" onclick="setChip('gMaxw','mwChips',this)">1280px</button>
+            <button class="chip" data-val="800" onclick="setChip('gMaxw','mwChips',this)">800px</button>
+            <button class="chip" data-val="600" onclick="setChip('gMaxw','mwChips',this)">600px</button>
+          </div>
+          <div class="q-hint">Images wider than this are scaled down — smaller files, faster sites. Applies to not-yet-converted images.</div>
         </div>
 
         <!-- Format -->
