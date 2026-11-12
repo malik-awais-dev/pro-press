@@ -22,8 +22,20 @@
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"WebApplication","name":"PRO-PRESS Image Optimizer","url":"https://pro-press.app/","description":"Free bulk image compressor. Compress JPEG, PNG, WebP and AVIF in your browser.","applicationCategory":"MultimediaApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
   </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+    {"@type":"Question","name":"Are my images uploaded to a server?","acceptedAnswer":{"@type":"Answer","text":"No. All compression, resizing and format conversion happens inside your browser on your own device — your images never leave it. The optional AI alt-text feature sends one resized copy of a single image to a secure AI service, and only when you explicitly tap the Alt button."}},
+    {"@type":"Question","name":"Is PRO-PRESS really free?","acceptedAnswer":{"@type":"Answer","text":"Yes, completely free with no sign-up, no watermarks and no file limits beyond 50 MB per image. Bulk-compress hundreds of images and download them as a ZIP at no cost."}},
+    {"@type":"Question","name":"What is the difference between WebP and JPEG?","acceptedAnswer":{"@type":"Answer","text":"WebP is a modern image format that typically produces files 50–80% smaller than JPEG at the same visual quality. All major browsers support it, making WebP the best default choice for websites. Use the built-in preview slider to compare quality before downloading."}},
+    {"@type":"Question","name":"How much smaller will my images be?","acceptedAnswer":{"@type":"Answer","text":"Most photos shrink by 70–90% at the recommended 80% quality setting. Combine compression with the resize option — for example scaling a 3300px camera photo down to 800px — and a 4 MB original can become a 100 KB web-ready file."}},
+    {"@type":"Question","name":"What is alt text and why does it matter?","acceptedAnswer":{"@type":"Answer","text":"Alt text describes an image for screen readers and search engines. It improves accessibility, helps your images rank in Google Images, and WordPress uses it as image metadata. PRO-PRESS writes alt text for you with AI, embeds it into the image metadata, and can even rename your file to match."}},
+    {"@type":"Question","name":"Does it work on mobile?","acceptedAnswer":{"@type":"Answer","text":"Yes. PRO-PRESS is fully responsive and works in any modern mobile browser — including iPhone and Android. Since processing happens on your device, no large uploads are needed on slow connections."}}
+  ]}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin="anonymous"/>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"/>
   <link href="styles.css" rel="stylesheet"/>
@@ -263,6 +275,78 @@
   </div><!-- /app-inner -->
 </div><!-- /app-wrap -->
 
+<!-- ═══ Content section: how it works, privacy, FAQ ═══
+     Real indexable content for search engines and AdSense reviewers.
+     Native <details> elements = accessible, no JS required. -->
+<main class="content-section" aria-label="About PRO-PRESS">
+  <div class="content-inner">
+
+    <h1>Free Image Compressor That Works Entirely in Your Browser</h1>
+    <p class="content-lead">Compress, resize and convert JPG, PNG, WebP and AVIF images — and generate SEO-ready alt text — without uploading a single byte. No sign-up, no watermarks, no limits.</p>
+
+    <h2>How it works</h2>
+    <div class="step-grid">
+      <div class="step">
+        <span class="step-num">1</span>
+        <div>
+          <strong>Drop your images</strong>
+          <p>Add as many JPG, PNG, WebP, AVIF or BMP files as you like — up to 50 MB each. They stay on your device the whole time.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <div>
+          <strong>Pick quality, size and format</strong>
+          <p>Choose WebP, AVIF, JPEG or PNG, tune the quality slider, and optionally resize wide photos — a 3300px camera shot becomes a clean 800px web image.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <div>
+          <strong>Convert, preview and download</strong>
+          <p>Compare before/after with the preview slider, grab files one by one or all at once as a ZIP — with AI-written alt text embedded if you want it.</p>
+        </div>
+      </div>
+    </div>
+
+    <h2>Why PRO-PRESS?</h2>
+    <ul class="why-list">
+      <li><strong>Nothing is uploaded.</strong> Unlike most online compressors, all processing runs on your own device — your images never touch a server. Even on slow connections, there is nothing to upload.</li>
+      <li><strong>Built for websites and WordPress.</strong> Resize photos to web-ready dimensions, embed alt text into image metadata, and get SEO-friendly filenames automatically.</li>
+      <li><strong>Modern formats.</strong> WebP and AVIF typically save 50–80% compared with JPEG at the same visual quality — the fastest thing you can do for your page speed.</li>
+    </ul>
+
+    <h2>Frequently asked questions</h2>
+    <div class="faq-list">
+      <details>
+        <summary>Are my images uploaded to a server?</summary>
+        <p>No. All compression, resizing and format conversion happens inside your browser on your own device — your images never leave it. The optional AI alt-text feature sends one resized copy of a single image to a secure AI service, and only when you explicitly tap the Alt button.</p>
+      </details>
+      <details>
+        <summary>Is PRO-PRESS really free?</summary>
+        <p>Yes — completely free, with no sign-up, no watermarks and no daily limits. Bulk-compress hundreds of images and download them as a ZIP at no cost.</p>
+      </details>
+      <details>
+        <summary>What is the difference between WebP and JPEG?</summary>
+        <p>WebP is a modern image format that typically produces files 50–80% smaller than JPEG at the same visual quality. Every major browser supports it, which makes WebP the best default choice for websites. Use the built-in preview slider to compare quality yourself before downloading.</p>
+      </details>
+      <details>
+        <summary>How much smaller will my images be?</summary>
+        <p>Most photos shrink by 70–90% at the recommended 80% quality setting. Combine compression with the resize option — for example scaling a 3300px camera photo down to 800px — and a 4 MB original can become a ~100 KB web-ready file.</p>
+      </details>
+      <details>
+        <summary>What is alt text and why does it matter?</summary>
+        <p>Alt text describes an image for screen readers and search engines. It improves accessibility, helps your images rank in Google Images, and WordPress stores it as image metadata. PRO-PRESS writes alt text for you with AI, embeds it into the image file, and can even rename your file to match.</p>
+      </details>
+      <details>
+        <summary>Does it work on mobile?</summary>
+        <p>Yes. PRO-PRESS is fully responsive and works in any modern mobile browser, including iPhone and Android. Because processing happens on your device, you don't need a fast connection to compress large batches.</p>
+      </details>
+    </div>
+
+  </div>
+</main>
+
 <!-- Bottom info bar -->
 <footer class="info-bar">
   <div class="info-bar-inner">
@@ -290,7 +374,6 @@ function setChip(selectId, groupId, btn) {
   sel.dispatchEvent(new Event('change', { bubbles: true }));
 }
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="app.js"></script>
 <script src="alt-ux.js"></script>
 </body>
