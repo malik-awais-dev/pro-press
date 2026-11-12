@@ -42,6 +42,9 @@ function ensureJSZip() {
 })();
 
 const toastWrap = document.createElement('div');
+// The id lets layout-fixes.css reposition the stack on phones — full width,
+// below the sticky header — instead of the cramped right-corner default.
+toastWrap.id = 'ppToastWrap';
 toastWrap.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(340px,86vw);pointer-events:none;';
 document.body.appendChild(toastWrap);
 
@@ -366,9 +369,6 @@ function rebuildTable() {
       pctHtml = `<span class="file-pct pct-error">!</span>`;
     }
 
-    // Original action order, restored: Preview, Download, Alt (standalone
-    // labelled pill), Remove. The grouped variant was tried and rolled back
-    // per owner feedback — the plain order reads cleaner on the site.
     let acts = '';
     if (e.status === 'done' && e.blob) {
       acts += `<button class="btn-icon" onclick="event.stopPropagation();openPreview(${e.id})" title="Preview"><span class="mi">visibility</span></button>`;
