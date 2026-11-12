@@ -10,11 +10,12 @@ const STYLES = {
   ecommerce: 'Write e-commerce product alt text for this image: name the product and highlight key features and use context.'
 };
 
-// Free-tier Flash models, tried in order. If one is congested (503) or
-// retired (404), we automatically try the next.
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+// Free-tier vision models, tried in order. gemini-3.5-flash-lite is Google's
+// low-latency, high-throughput model, so it goes FIRST (typical reply in 1-3s);
+// the heavier gemini-3.8-flash is only a fallback lane.
+const GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 
-const CALL_TIMEOUT_MS = 4000;  // hard cap per outbound HTTP call
+const CALL_TIMEOUT_MS = 8000;  // hard cap per outbound HTTP call (normal vision reply: 2-6s)
 const BUDGET_MS = 9000;        // total wall-clock budget (platforms kill functions ~10s)
 
 module.exports = async (req, res) => {
@@ -44,7 +45,7 @@ module.exports = async (req, res) => {
       for (const model of GEMINI_MODELS) {
         if (remaining() < 1500) { geminiError = 'Ran out of time budget trying Gemini models'; break; }
         try {
-          const alt = await callGemini(geminiKey, model, prompt, image, mediaType, CALL_TIMEOUT_MS);
+          const alt = await callGemini(geminiKey, model, prompt, image, mediaType, Math.min(CALL_TIMEOUT_MS, remaining()));
           if (alt) return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'gemini' });
         } catch (err) {
           geminiError = err.message;
