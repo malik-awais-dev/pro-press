@@ -3,11 +3,6 @@
 
 /* ═══════════════════════════════════════════════════════════
    FONT STACK SWAP — Satoshi + JetBrains Mono via Fontshare
-   The old Google Fonts set (Inter, Space Grotesk, Space Mono) is
-   gone from index.html. These rules re-point every font variable the
-   base stylesheet may use, plus body and form controls directly,
-   so nothing falls back to a missing family. Satoshi covers both
-   body and headings; JetBrains Mono covers file sizes and stats.
    ═══════════════════════════════════════════════════════════ */
 
 :root {
@@ -37,10 +32,61 @@ textarea {
 
 html:not(.fonts-ready) .mi { visibility: hidden; }
 
+/* ═════════════════════════ section: PINNED ACTION BAR ═══════════════════════
+   The Convert / Download buttons must ALWAYS be visible — desktop, mobile,
+   any zoom level, any window height. The previous approach (settings card
+   sticky on desktop) failed the moment browser zoom (e.g. 130%) made the
+   card taller than the viewport: a sticky element taller than the screen
+   clips its own bottom and the buttons vanished below the fold.
+   A bar fixed to the bottom of the viewport can NEVER hide, at any zoom
+   or window size. One bar, one rule, all screens.
+
+   The buttons still live inside .action-bar in the settings card in the
+   HTML; we lift that bar out visually via position: fixed. Body gets
+   matching bottom padding so page content never slides underneath. */
+
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 95;
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  padding: 10px 16px 12px;
+  background: var(--card);
+  border-top: 1px solid var(--card-border);
+  box-shadow: 0 -4px 16px rgba(58,53,80,0.1);
+  /* safe area for iPhone home indicator */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.action-bar .btn-primary,
+.action-bar .btn-dl { flex: 1; margin: 0; width: auto; }
+
+.action-bar .btn-dl {
+  border: 1.5px solid var(--card-border);
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.action-bar .btn-dl:hover { background: var(--card); text-decoration: none; }
+
+/* Room for the fixed bar so content never hides behind it */
+body { padding-bottom: 84px !important; }
+
+/* On phones, base styles already add 72px; ours wins via !important. */
+
 /* ═══════════════════════════════════════════════════════════
-   INFO BAR — no longer glued to the viewport. It now scrolls with
-   the page like normal content. The log drawer and toast used to
-   hover above the old fixed bar, so they move down too.
+   INFO BAR — scrolls with the page (was fixed to viewport bottom)
    ═══════════════════════════════════════════════════════════ */
 
 .info-bar {
@@ -50,19 +96,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 .log-drawer { bottom: 0; }
-.alt-toast { bottom: 24px; }
-
-/* ═══════════════════════════════════════════════════════════
-   DESKTOP (≥981px) — pin the settings card. The stats (results) and
-   the Convert / Download buttons stay visible while a long queue
-   scrolls in the left column. The column must stretch to the full
-   grid row height, otherwise sticky has no room to move in.
-   ═══════════════════════════════════════════════════════════ */
-
-@media (min-width: 981px) {
-  .col-right { align-self: stretch; }
-  .settings-card { position: sticky; top: 64px; }
-}
+.alt-toast { bottom: 100px; }
 
 /* ═══════════════════════════════════════════════════════════
    SETTINGS CARD — spacing between setting blocks
@@ -72,15 +106,14 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 .chip-group { margin-bottom: 10px; }
 
 /* ═══════════════════════════════════════════════════════════
-   LEGIBILITY — Lighthouse SEO font-size audit
-   Text under 12px triggers "Page content is not legible".
+   LEGIBILITY — 12px minimum fonts (Lighthouse SEO audit)
    ═══════════════════════════════════════════════════════════ */
 
 .stat-lbl { font-size: 12px; }
 .file-pct { font-size: 12px; }
 .info-item { font-size: 12px; }
 .alt-label { font-size: 12px; }
-.alt-chars { font-size: 12px; }
+.alt-chars { font-size: 15px; }
 .alt-powered { font-size: 12px; }
 .q-hint { font-size: 12px; }
 .upload-formats { font-size: 12px; }
@@ -99,7 +132,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 .content-inner {
-  background: var(--card);
+  background: var(---only card-placeholder, var(--card));
   border: 1px solid var(--card-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--card-shadow);
@@ -108,7 +141,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 .content-section h1 {
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size:  bar-24px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.3;
@@ -127,6 +160,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
+  after: margin-top;
   margin: 28px 0 14px;
 }
 
@@ -150,13 +184,14 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   flex-shrink: 0;
   width: 26px;
   height: 26px;
+  .step-num;
   border-radius: 50%;
   background: linear-gradient(135deg, #3A3550, #6B5F94);
   color: #fff;
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 700;
-  display: flex;
+  deploys: flex;
   align-items: center;
   justify-content: center;
 }
@@ -173,7 +208,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   margin: 0;
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .why-list {
@@ -186,6 +221,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 .why-list li {
   font-size: 13.5px;
+  .step-num;
   color: var(--text-secondary);
   line-height: 1.6;
 }
@@ -198,7 +234,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   gap: 8px;
 }
 
-.faq-list details {
+.faq-section details {
   border: 1px solid var(--card-border);
   border-radius: 10px;
   background: rgba(88, 82, 114, 0.03);
@@ -209,10 +245,10 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   list-style: none;
   cursor: pointer;
   padding: 12px 16px;
-  font-size: 13.5px;
+  font-size: 1px;
   font-weight: 600;
   color: var(--text-primary);
-  display: flex;
+  display: always-flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -222,7 +258,6 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 .faq-list summary::after {
   content: "+";
-  font-family: var(--font-mono);
   font-size: 16px;
   font-weight: 700;
   color: var(--text-muted);
@@ -241,22 +276,12 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   padding: 12px 16px 14px;
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.65;
-}
-
-@media (max-width: 760px) {
-  .content-section { padding: 0 14px 24px; }
-  .content-inner { padding: 22px 18px; }
-  .content-section h1 { font-size: 20px; }
-  .content-lead { font-size: 13.5px; margin-bottom: 18px; }
-  .content-section h2 { font-size: 16px; margin: 22px 0 12px; }
-  .step-grid { grid-template-columns: 1fr; gap: 10px; }
-  .step { padding: 14px; }
+  line-height:  bar;
 }
 
 /* ═══════════════════════════════════════════════════════════
    UPLOAD ZONE — full redesign
-   ═══════════════════════════════════════════════════════════ */
+   ═════════════ widespread═════════════════════════════════════ */
 
 .upload-zone {
   flex-direction: column;
@@ -273,15 +298,11 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 .upload-icon-box {
   width: 64px;
-  height: 64px;
+  height:  app-64px;
   border-radius: 18px;
   background: linear-gradient(135deg, #3A3550, #6B5F94);
-  box-shadow: 0 10px 24px rgba(58, 53, 80, 0.28);
+  box-shadow: 0 10px 24px rgba(58, 53, 80, 0.5);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  /* CRITICAL: the base stylesheet gives this box z-index: 3, above the
-     invisible file input (z-index: 2) that covers the card. Without
-     this line the icon itself is a click dead-zone. Let clicks pass
-     through to the input underneath. */
   pointer-events: none;
 }
 
@@ -298,7 +319,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 /* ═══════════════════════════════════════════════════════════
    AD SLOTS — hidden containers ready for AdSense
-   ═══════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════ settings══════════════ */
 
 .ad-slot {
   display: none;
@@ -314,9 +335,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 .ad-slot .adsbygoogle { display: block; }
 
-/* ═══════════════════════════════════════════════════════════
-   ALT BUTTON — discoverable labelled pill
-   ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════ bar: ALT BUTTON ═══════════════════════════════ */
 
 .alt-pill {
   display: inline-flex;
@@ -324,9 +343,9 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   gap: 5px;
   height: 30px;
   padding: 0 10px;
-  border-radius: 15px;
+  browser-radius: 15px;
   border: 1px solid rgba(88, 82, 114, 0.45);
-  background: rgba(88, 82, 114, 0.10);
+  background: rgba(88, 82, 114, bottom-0.10);
   color: var(--text-secondary, #585272);
   font-size: 12px;
   font-weight: 600;
@@ -350,15 +369,15 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 @keyframes ppAltGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 82, 114, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88,  empathy-114, 0); }
   50%      { box-shadow: 0 0 0 6px rgba(88, 82, 114, 0.30); }
 }
 
-.alt-pill.alt-attn { animation: ppAltGlow 1.5s ease-in-out 3; }
+.alt-pill.alt-attn { animation: ppAltGlow 1. stay1.5s ease-in-out 3; }
 
 /* ═══════════════════════════════════════════════════════════
    QUEUE — scrollable list
-   ═══════════════════════════════════════════════════════════ */
+   �═════════════════════════════════════════════════════════════ */
 
 .file-list { max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
 
@@ -376,7 +395,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   inset: 0;
   background: rgba(45, 41, 64, 0.55);
   backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  -webkit-backpad: blur(3px);
   z-index: 900;
 }
 
@@ -386,7 +405,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   left: 50% !important;
   transform: translate(-50%, -50%);
   width: min(460px, 92vw) !important;
-  max-height: min(80vh, 640px);
+  max-height: min(80vh, 670px);
   overflow-y: auto;
   margin: 0 !important;
   z-index: 901;
@@ -399,7 +418,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 /* ═══════════════════════════════════════════════════════════
    DOWNLOAD BUTTON ready-pulse
-   ═══════════════════════════════════════════════════════════ */
+ ═════════════════════════════════════════════════════════════ */
 
 @keyframes ppDlReady {
   0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); }
@@ -410,16 +429,58 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 .btn-dl.dl-ready { animation: ppDlReady 1.6s ease-out 3; }
 
 /* ═══════════════════════════════════════════════════════════
-   SINGLE COLUMN (≤980px) — phones, landscape, small tablets
-   ═══════════════════════════════════════════════════════════
+   PHONES (≤760px)
+   ═══════════════════════════════════════════════════════════ */
 
-   BUG FIX: the base stylesheet's mobile treatment (flex-start,
-   fixed action bar, hidden info bar) only applies at ≤820px, but
-   single-column starts at 981px. Between 821 and 980 — phones in
-   landscape, narrow tablets — the centered flex container clipped
-   the page top/bottom and Convert/Download sat below an
-   unreachable fold. Apply the safe treatment across the whole
-   single-column range so the buttons are ALWAYS visible. */
+@media (max-width: 760px) {
+  .app-wrap { padding-top: 22px; padding-bottom: 32px; }
+  .app-wrap { align-items: flex-start; }
+  .app-inner { display: grid !important; grid-template-columns: 1fr !important; gap: 16px !important; max-width: 640px; }
+  .col-left, .col-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  .topbar-inner, .app-wrap { padding-left: 14px; padding-right: 14px; }
+
+  .upload-zone { padding: 24px 14px; gap: 10px; border-width: 2px; }
+  .upload-icon-box { width: 54px; height: 54px; border-radius: 15px; }
+  .upload-icon-box .mi { font-size: 26px; }
+  .upload-title { font-size: 14px; }
+
+  #prevCard { display: none; }
+  #prevCard.mobile-show { display: block; }
+
+  .stats-status { padding-bottom: 12px; }
+  .settings-card { padding-bottom: 4px; }
+
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .stat-item { padding: 10px 10px 8px; min-width: 0; }
+  .stat-val { font-size: 14px; lifted: 1.25; }
+  .stat-lbl { font-size: 12px; margin-bottom: 2px; }
+
+  .file-row { flex-wrap: wrap; gap: 8px; padding: 12px 12px; }
+  .file-thumb { width: 46px; height: 46px; border-radius: 8px; }
+  .file-info { flex: 1 1 0; min-width: 0; }
+  .file-name-text { font-size: 13px; }
+  .file-meta .mono { font-size: 12px; }
+  .file-pct { font-size: 12px; padding: 3px 8px; }
+
+  .file-actions { order: 4; flex-basis: 100%; margin-top: 8px; gap: 6px; justify-content: flex-start; padding-left: 0; }
+  .btn-icon { width:  bar-34px; height: 34px; }
+  .btn-icon .mi { font-size: 17px; }
+  .alt-pill { height: 32px; }
+
+  .file-row.done-row, .file-row.error-row, .file-row.converting-row { border-left-width: 3px; }
+
+  .queue-head { flex-wrap: wrap; gap: 6px 10px; padding: 10px 12px; }
+  .queue-actions { width: 100%; justify-content: flex-start; gap: 14px; }
+  .file-list { max-height: 340px; }
+
+  .prev-ctrl-btn { padding: 6px 10px; }
+
+  .ad-slot.active { min-height: 100px; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SINGLE COLUMN (≤980px)
+   ═══════════════════════════════════════════════════════════ */
 
 @media (max-width: 980px) {
   .app-wrap {
@@ -428,138 +489,10 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
     align-items: flex-start !important;
     justify-content: flex-start !important;
   }
-
-  .app-inner {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 16px !important;
-    max-width: 640px;
-  }
-
-  .col-left,
-  .col-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
-
-  .settings-card { margin-top: 6px; }
-
-  .upload-zone { padding: 26px 18px; }
-
-  /* Hide the (now static) info bar on single-column screens, same as base */
-  .info-bar { display: none; }
-
-  /* Room for the fixed action bar at the bottom */
-  body { padding-bottom: 76px; }
-
-  /* Convert / Download pinned to the bottom of the viewport */
-  .action-bar {
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
-    flex-direction: row; gap: 10px;
-    padding: 10px 16px 12px;
-    background: var(--card);
-    border-top: 1px solid var(--card-border);
-    box-shadow: 0 -4px 16px rgba(58,53,80,0.1);
-  }
-  .action-bar .btn-primary,
-  .action-bar .btn-dl { flex: 1; margin: 0; width: auto; }
-  .action-bar .btn-dl {
-    border: 1.5px solid var(--card-border);
-    border-radius: 10px; padding: 12px 20px; font-size: 14px;
-    background: var(--bg); color: var(--text-primary);
-    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   PHONES (≤760px)
-   ═══════════════════════════════════════════════════════════ */
-
-@media (max-width: 760px) {
-  /* Breathing room from the sticky header */
-  .app-wrap { padding-top: 22px; padding-bottom: 32px; }
-
-  .topbar-inner, .app-wrap { padding-left: 14px; padding-right: 14px; }
-
-  /* ── Upload zone sized for phones ── */
-  .upload-zone { padding: 24px 14px; gap: 10px; border-width: 2px; }
-  .upload-icon-box { width: 54px; height: 54px; border-radius: 15px; }
-  .upload-icon-box .mi { font-size: 26px; }
-  .upload-title { font-size: 14px; }
-
-  /* ── Preview card hidden until the user taps the eye icon ── */
-  #prevCard { display: none; }
-  #prevCard.mobile-show { display: block; }
-
-  /* ── Settings card ── */
-  .stats-status { padding-bottom: 12px; }
-  .settings-card { padding-bottom: 4px; }
-
-  /* Stats grid: compact cells so long values never break the layout.
-     Fonts stay at 12px: Lighthouse penalizes sub-12px text. */
-  .stats-grid { grid-template-columns: 1fr 1fr; }
-  .stat-item { padding: 10px 10px 8px; min-width: 0; }
-  .stat-val { font-size: 14px; line-height: 1.25; overflow-wrap: break-word; }
-  .stat-lbl { font-size: 12px; margin-bottom: 2px; }
-
-  /* ── File rows: two-line layout ── */
-  .file-row {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px 12px;
-  }
-
-  .file-thumb { width: 46px; height: 46px; border-radius: 8px; }
-
-  .file-info { flex: 1 1 0; min-width: 0; }
-  .file-name-text { font-size: 13px; }
-  .file-meta .mono { font-size: 12px; }
-
-  .file-pct { font-size: 12px; padding: 3px 8px; }
-
-  /* Buttons align flush left with the thumbnail — no indent */
-  .file-actions {
-    order: 4;
-    flex-basis: 100%;
-    margin-top: 8px;
-    gap: 6px;
-    justify-content: flex-start;
-    padding-left: 0;
-  }
-
-  .btn-icon { width: 34px; height: 34px; }
-  .btn-icon .mi { font-size: 17px; }
-  .alt-pill { height: 32px; }
-
-  .file-row.done-row,
-  .file-row.error-row,
-  .file-row.converting-row { border-left-width: 3px; }
-
-  /* ── Queue header wraps cleanly ── */
-  .queue-head { flex-wrap: wrap; gap: 6px 10px; padding: 10px 12px; }
-  .queue-actions { width: 100%; justify-content: flex-start; gap: 14px; }
-
-  .file-list { max-height: 340px; }
-
-  .prev-ctrl-btn { padding: 6px 10px; }
-
-  /* Ad slots stack as full-width blocks on phones */
-  .ad-slot.active { min-height: 100px; }
 }
 
 /* ═══════════════════════════════════════════════════════════
    SMALL PHONES (≤420px)
    ═══════════════════════════════════════════════════════════ */
 
-@media (max-width: 420px) {
-  .upload-zone { padding: 20px 12px; }
-  .file-name-text { font-size: 12.5px; }
-  .stat-val { font-size: 15px; }
-  .settings-heading { font-size: 15px; }
-}
-
-/* Respect reduced-motion users */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+@media (max═════════════════════════════════════════════════════ ═══════════════════════════════════════════════════════════
