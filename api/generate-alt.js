@@ -1,5 +1,8 @@
 // Alt text generator - tries Google Gemini (free tier) first, then AshnaAI.
 // API keys live in hosting platform env vars, never in code.
+// Every outbound call has a hard timeout and the whole handler runs inside a
+// time budget, so the function ALWAYS responds quickly (success or clean error)
+// instead of hanging past the platform's function timeout.
 const STYLES = {
   concise: 'Write a concise alt text (under 125 characters) describing the essential content of this image.',
   detailed: 'Write a detailed alt text describing this image: key objects, colors, setting, and mood.',
@@ -9,15 +12,21 @@ const STYLES = {
 
 // Free-tier Flash models, tried in order. If one is congested (503) or
 // retired (404), we automatically try the next.
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+
+const CALL_TIMEOUT_MS = 4000;  // hard cap per outbound HTTP call
+const BUDGET_MS = 9000;        // total wall-clock budget (platforms kill functions ~10s)
 
 module.exports = async (req, res) => {
+  const start = Date.now();
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const remaining = () => BUDGET_MS - (Date.now() - start);
 
   try {
     const body = req.body || {};
@@ -33,18 +42,18 @@ module.exports = async (req, res) => {
     let geminiError = null;
     if (geminiKey) {
       for (const model of GEMINI_MODELS) {
+        if (remaining() < 1500) { geminiError = 'Ran out of time budget trying Gemini models'; break; }
         try {
-          const alt = await callGemini(geminiKey, model, prompt, image, mediaType);
+          const alt = await callGemini(geminiKey, model, prompt, image, mediaType, CALL_TIMEOUT_MS);
           if (alt) return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'gemini' });
         } catch (err) {
           geminiError = err.message;
           console.error('Gemini model ' + model + ' failed:', geminiError);
-          // 503 = temporary congestion: retry this same model once after a pause.
-          // 404 = model retired: move straight to the next model.
-          if (err.status === 503) {
-            await new Promise(r => setTimeout(r, 1500));
+          // 503 = temporary congestion: one quick retry of the same model if budget allows.
+          if (err.status === 503 && remaining() > 2500) {
+            await new Promise(r => setTimeout(r, 300));
             try {
-              const alt = await callGemini(geminiKey, model, prompt, image, mediaType);
+              const alt = await callGemini(geminiKey, model, prompt, image, mediaType, Math.min(CALL_TIMEOUT_MS, remaining()));
               if (alt) return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'gemini' });
             } catch (retryErr) {
               geminiError = retryErr.message;
@@ -59,15 +68,15 @@ module.exports = async (req, res) => {
     // ---- Provider 2: AshnaAI (fallback) ----
     const ashnaKey = process.env.ASHNA_API_KEY;
     let ashnaError = null;
-    if (ashnaKey) {
+    if (ashnaKey && remaining() > 1500) {
       try {
-        const alt = await callAshna(ashnaKey, prompt, image, mediaType);
+        const alt = await callAshna(ashnaKey, prompt, image, mediaType, Math.min(CALL_TIMEOUT_MS, remaining()));
         return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'ashna' });
       } catch (err) {
         ashnaError = err.message;
       }
     } else {
-      ashnaError = 'ASHNA_API_KEY env var is NOT present in this deployment build';
+      ashnaError = ashnaKey ? 'Skipped AshnaAI fallback (out of time budget)' : 'ASHNA_API_KEY env var is NOT present in this deployment build';
     }
 
     // Both providers failed or unconfigured - report both so we can diagnose.
@@ -77,7 +86,7 @@ module.exports = async (req, res) => {
   }
 };
 
-async function callGemini(key, model, prompt, imageBase64, mediaType) {
+async function callGemini(key, model, prompt, imageBase64, mediaType, timeoutMs) {
   // AQ.* auth keys must be sent as a header, not as a ?key= query parameter.
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
   const apiRes = await fetch(url, {
@@ -86,6 +95,7 @@ async function callGemini(key, model, prompt, imageBase64, mediaType) {
       'Content-Type': 'application/json',
       'x-goog-api-key': key
     },
+    signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify({
       contents: [{
         role: 'user',
@@ -109,13 +119,14 @@ async function callGemini(key, model, prompt, imageBase64, mediaType) {
   return alt;
 }
 
-async function callAshna(key, prompt, imageBase64, mediaType) {
+async function callAshna(key, prompt, imageBase64, mediaType, timeoutMs) {
   const apiRes = await fetch('https://api.ashna.ai/v1/api/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + key,
       'Content-Type': 'application/json'
     },
+    signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify({
       model: 'glm-5.3-flash',
       messages: [{
