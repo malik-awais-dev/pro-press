@@ -142,44 +142,6 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   FILE ROW ACTIONS — pair Download + Alt as one CTA group
-   Preview (eye) stands alone; Download and its neighbour Alt
-   sit in a tight pill cluster so the two things a user does
-   with a finished image read as one unit.
-   ═══════════════════════════════════════════════════════════ */
-
-.file-actions { gap: 6px; }
-
-.file-cta-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  background: rgba(88, 82, 114, 0.06);
-  border: 1px solid var(--card-border);
-  border-radius: 17px;
-  padding: 2px;
-}
-
-/* Inside the cluster the pill loses its own border — the cluster
-   is the pill now, so it reads as ONE "download + alt" control. */
-.file-cta-group .alt-pill {
-  border: none;
-  background: transparent;
-  height: 28px;
-  padding: 0 9px;
-}
-
-.file-cta-group .alt-pill:hover {
-  background: rgba(88, 82, 114, 0.14);
-  transform: none;
-}
-
-.file-cta-group .alt-pill.alt-done {
-  background: var(--success-light, #f0fdf4);
-  color: var(--success, #16a34a);
-}
-
-/* ═══════════════════════════════════════════════════════════
    INFO BAR — scrolls with the page (was fixed to viewport bottom)
    ═══════════════════════════════════════════════════════════ */
 
@@ -441,7 +403,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 .ad-slot .adsbygoogle { display: block; }
 
 /* ═══════════════════════════════════════════════════════════
-   ALT BUTTON — discoverable labelled pill
+   ALT BUTTON — discoverable labelled pill (standalone action)
    ═══════════════════════════════════════════════════════════ */
 
 .alt-pill {
@@ -618,9 +580,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
   .btn-icon { width: 34px; height: 34px; }
   .btn-icon .mi { font-size: 17px; }
-  .file-cta-group { height: 38px; }
   .alt-pill { height: 32px; }
-  .file-cta-group .alt-pill { height: 30px; }
 
   .file-row.done-row,
   .file-row.error-row,
