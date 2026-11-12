@@ -315,10 +315,6 @@ function altBtnHtml(entry) {
   return '<span class="mi" style="font-size:14px">' + (done ? 'check' : 'auto_awesome') + '</span> Alt';
 }
 
-function altPillHtml(entry, id) {
-  return `<button class="alt-pill${entry.altText ? ' alt-done' : ''}" id="altBtn-${id}" onclick="event.stopPropagation();genAlt(${id})" title="Write alt text with AI">${altBtnHtml(entry)}</button>`;
-}
-
 function rebuildTable() {
   if (state.editing) return;
   const container = $('fileBody'); container.innerHTML = '';
@@ -370,19 +366,16 @@ function rebuildTable() {
       pctHtml = `<span class="file-pct pct-error">!</span>`;
     }
 
-    // Actions layout: Preview stands alone, then a tight group pairing
-    // Download + Alt (the two things a user does with a finished image),
-    // then Remove at the end. The pairing makes the primary actions read
-    // as one unit instead of four loose buttons.
+    // Original action order, restored: Preview, Download, Alt (standalone
+    // labelled pill), Remove. The grouped variant was tried and rolled back
+    // per owner feedback — the plain order reads cleaner on the site.
     let acts = '';
     if (e.status === 'done' && e.blob) {
       acts += `<button class="btn-icon" onclick="event.stopPropagation();openPreview(${e.id})" title="Preview"><span class="mi">visibility</span></button>`;
-      acts += `<span class="file-cta-group">`;
       acts += `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button>`;
-      acts += altPillHtml(e, e.id);
-      acts += `</span>`;
-    } else if (e.status !== 'converting') {
-      acts += altPillHtml(e, e.id);
+    }
+    if (e.status !== 'converting') {
+      acts += `<button class="alt-pill${e.altText ? ' alt-done' : ''}" id="altBtn-${e.id}" onclick="event.stopPropagation();genAlt(${e.id})" title="Write alt text with AI">${altBtnHtml(e)}</button>`;
     }
     acts += `<button class="btn-icon danger" onclick="event.stopPropagation();removeOne(${e.id})" title="Remove"><span class="mi">close</span></button>`;
 
@@ -686,7 +679,7 @@ async function runConversion() {
     pulseDownloadBtn();
     if (!state.shownAltTip && !state.files.some(e => e.altText)) {
       state.shownAltTip = true;
-      setTimeout(() => log('Tip: tap the ✨ Alt button to auto-write alt text for any image', 'info'), 1200);
+      setTimeout(() => log('Tip: tap the Alt button to auto-write alt text for any image', 'info'), 1200);
     }
   }
   // Files added (or re-queued by a settings change) while we were busy:
