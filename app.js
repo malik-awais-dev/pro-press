@@ -1,4 +1,4 @@
-const state = { files: [], nextId: 0, lastBlob: null, selId: null, editing: false, shownRenameTip: false };
+const state = { files: [], nextId: 0, lastBlob: null, selId: null, editing: false, shownRenameTip: false, shownAltTip: false };
 const $ = id => document.getElementById(id);
 const fmtB = b => !b ? '0 B' : b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
 const extOf = f => ({ webp: 'webp', avif: 'avif', jpeg: 'jpg', png: 'png' }[f]);
@@ -56,10 +56,8 @@ function escapeXml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
-// ── Alt-text metadata embedding (real file bytes, so other sites can read it) ──
-// PNG: standard tEXt chunk with keyword "Description" — read by most tools.
-// JPEG: XMP packet (dc:description) — what WordPress & CMSs import as alt text.
-// WebP/AVIF: container editing is far more complex; skipped (alt still in the app).
+// ── Alt-text metadata embedding (best-effort; many tools read it, WordPress does not
+//    auto-fill its own Alt field from it — Copy button remains the reliable WP path) ──
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -120,7 +118,6 @@ function embedAltJPEG(bytes, alt) {
   sdv.setUint16(2, segDataLen + 2);
   seg.set(ns, 4);
   seg.set(xmp, 4 + ns.length);
-  // Insert after SOI; skip past APP0/JFIF so it stays first (JFIF convention).
   let at = 2;
   if (bytes.length > 4 && bytes[2] === 0xFF && bytes[3] === 0xE0) {
     const l = (bytes[4] << 8) | bytes[5];
@@ -147,11 +144,6 @@ async function blobWithAlt(blob, entry) {
   }
 }
 
-function altEmbeddable(entry) {
-  const f = entry && entry.fmt ? entry.fmt : gFmt();
-  return !!(entry && entry.altText && (f === 'png' || f === 'jpeg'));
-}
-
 // ── Quality & Format Controls ──
 
 $('gQ').addEventListener('input', () => {
@@ -169,7 +161,6 @@ $('gFmt').addEventListener('change', () => {
   applySettingsToPending();
 });
 
-// Settings changes live-apply to queued (not yet converted) files.
 function applySettingsToPending() {
   if (state.editing) return;
   const fmt = gFmt();
@@ -228,7 +219,7 @@ dz.addEventListener('dragleave', () => dz.classList.remove('over'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); addFiles(e.dataTransfer.files); });
 $('fi').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
 
-// ── Convert FAB Attention Pulse ──
+// ── Attention pulses ──
 
 function pulseConvertBtn() {
   const btn = $('btnConvert');
@@ -279,6 +270,12 @@ function addFiles(files) {
     if (skip) log('No images added — ' + skip + ' file(s) skipped (unsupported type or over 50 MB)', 'err');
     rebuildTable(); updateUI();
   }
+}
+
+// Alt button markup: a proper labelled pill with an icon, not a cryptic "Alt" square.
+function altBtnHtml(entry) {
+  const done = !!(entry && entry.altText);
+  return '<span class="mi" style="font-size:14px">' + (done ? 'check' : 'auto_awesome') + '</span> Alt';
 }
 
 function rebuildTable() {
@@ -335,9 +332,7 @@ function rebuildTable() {
       acts += `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button>`;
     }
     if (e.status !== 'converting') {
-      const altBtnId = 'altBtn-' + e.id;
-      const altIcon = e.altText ? '✓' : 'Alt';
-      acts += `<button class="btn-icon btn-icon-alt" id="${altBtnId}" onclick="event.stopPropagation();genAlt(${e.id})" title="Generate Alt Text">${altIcon}</button>`;
+      acts += `<button class="alt-pill${e.altText ? ' alt-done' : ''}" id="altBtn-${e.id}" onclick="event.stopPropagation();genAlt(${e.id})" title="Write alt text with AI">${altBtnHtml(e)}</button>`;
     }
     acts += `<button class="btn-icon danger" onclick="event.stopPropagation();removeOne(${e.id})" title="Remove"><span class="mi">close</span></button>`;
 
@@ -428,7 +423,7 @@ function startInlineRename(id, card) {
   input.addEventListener('click', ev => ev.stopPropagation());
 }
 
-// ── Download Single (embeds alt text into the file when possible) ──
+// ── Download Single ──
 
 async function dlOne(id) {
   const e = state.files.find(x => x.id === id);
@@ -438,7 +433,7 @@ async function dlOne(id) {
   const url = URL.createObjectURL(out);
   const a = document.createElement('a'); a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  log('Downloaded: ' + name + (altEmbeddable(e) ? ' · alt text embedded' : ''), 'ok');
+  log('Downloaded: ' + name, 'ok');
 }
 
 // ── Preview ──
@@ -448,6 +443,8 @@ const prevSteps = [200, 320, 440, 560];
 
 function openPreview(id) {
   const e = state.files.find(x => x.id === id); if (!e || !e.blob) return;
+  // On mobile the preview card is hidden by default (CSS); reveal it on demand.
+  $('prevCard').classList.add('mobile-show');
   const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'none';
   $('prevWrap').style.height = prevH + 'px';
   $('prevOrig').src = URL.createObjectURL(e.file);
@@ -624,6 +621,11 @@ $('btnConvert').addEventListener('click', async () => {
   if (okCount) {
     log('Ready to download — ' + (okCount === 1 ? 'your image' : okCount + ' images') + ' converted', 'ok');
     pulseDownloadBtn();
+    // First conversion is the moment to teach the hidden treasure: the AI Alt button.
+    if (!state.shownAltTip && !state.files.some(e => e.altText)) {
+      state.shownAltTip = true;
+      setTimeout(() => log('Tip: tap the ✨ Alt button to auto-write alt text for any image', 'info'), 1200);
+    }
   }
 });
 
@@ -641,6 +643,7 @@ $('btnClear').addEventListener('click', () => {
   state.files = []; state.selId = null; state.lastBlob = null;
   rebuildTable(); updateUI();
   $('prevOrig').src = ''; $('prevComp').src = '';
+  $('prevCard').classList.remove('mobile-show');
   const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'flex';
   $('stStatus').textContent = 'Ready'; $('stStatus').style.color = 'var(--tertiary)';
   log('Cleared', 'info');
@@ -651,7 +654,6 @@ $('btnDlAll').addEventListener('click', async () => {
   const doneFiles = state.files.filter(e => e.status === 'done' && e.blob);
   if (!doneFiles.length) return;
 
-  // Single image: download it directly — no pointless ZIP.
   if (doneFiles.length === 1) {
     btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Saving…';
     await dlOne(doneFiles[0].id);
@@ -696,8 +698,6 @@ $('btnCopyLast').addEventListener('click', async () => {
 let altEntryId = null;
 let altBusy = false;
 
-// Alt panel opens as a floating modal with a dim backdrop, so it never
-// pushes/overlaps the Settings card no matter how many images you process.
 const altBackdrop = document.createElement('div');
 altBackdrop.id = 'altBackdrop';
 document.body.appendChild(altBackdrop);
@@ -763,9 +763,6 @@ function resizeForAlt(file) {
   });
 }
 
-// After generating alt text: store it, auto-rename the file to match
-// (unless the user renamed it manually), so the download name AND the
-// embedded metadata both describe the image.
 function applyAltToEntry(entry, alt) {
   entry.altText = alt;
   if (!entry.outName || entry.autoNamed) {
@@ -779,9 +776,6 @@ function applyAltToEntry(entry, alt) {
       rebuildTable();
     }
   }
-  const embed = altEmbeddable(entry);
-  log('Alt text saved — it will be embedded in ' + (entry.fmt || gFmt()).toUpperCase() + ' downloads' +
-      (embed ? '' : ' (PNG/JPEG embed supported; WebP/AVIF keep alt in the app only)'), 'info');
 }
 
 async function genAlt(id) {
@@ -792,7 +786,7 @@ async function genAlt(id) {
   altBusy = true;
 
   const btn = $('altBtn-' + id);
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:16px;animation:spin 0.8s linear infinite">sync</span>'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:14px;animation:spin 0.8s linear infinite">sync</span> Alt'; }
 
   openAltPanel();
   $('altLoading').style.display = 'flex';
@@ -815,6 +809,7 @@ async function genAlt(id) {
     const data = await res.json();
     showAltResult(data);
     applyAltToEntry(e, data.alt || '');
+    log('Alt text ready — use Copy to paste it into WordPress or your site', 'ok');
   } catch (err) {
     $('altLoading').style.display = 'none';
     $('altResults').style.display = 'block';
@@ -825,7 +820,7 @@ async function genAlt(id) {
     log('Alt text error: ' + err.message, 'err');
   } finally {
     altBusy = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Alt'; rebuildTable(); }
+    rebuildTable(); // restores correct Alt button state (icon + done check)
   }
 }
 
