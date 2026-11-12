@@ -1,4 +1,4 @@
-const state = { files: [], nextId: 0, lastBlob: null, selId: null, editing: false, shownRenameTip: false, shownAltTip: false };
+const state = { files: [], nextId: 0, lastBlob: null, selId: null, editing: false };
 const $ = id => document.getElementById(id);
 const fmtB = b => !b ? '0 B' : b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
 const extOf = f => ({ webp: 'webp', avif: 'avif', jpeg: 'jpg', png: 'png' }[f]);
@@ -32,35 +32,16 @@ function ensureJSZip() {
   return jsZipPromise;
 }
 
-// ── Toasts (log() is user-visible) ──
-
-(function injectToastStyle() {
-  const s = document.createElement('style');
-  s.textContent = '@keyframes ppToastIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}' +
-    '@keyframes ppBarSlide{0%{margin-left:-35%}100%{margin-left:100%}}';
-  document.head.appendChild(s);
-})();
-
-const toastWrap = document.createElement('div');
-// The id lets layout-fixes.css reposition the stack on phones — full width,
-// below the sticky header — instead of the cramped right-corner default.
-toastWrap.id = 'ppToastWrap';
-toastWrap.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(340px,86vw);pointer-events:none;';
-document.body.appendChild(toastWrap);
-
+// ── Notifications ──
+// Owner decision: NO user-facing toasts at all. The queue rows themselves
+// (spinner → size result → green % badge), the status line in the Queue
+// card, and the download button's ready-pulse already tell the user
+// everything they need — toasts just repeated the UI and cluttered phones.
+// log() stays as a developer-console trace so failures are still
+// diagnosable in DevTools, but nothing ever renders on screen.
 function log(msg, type) {
-  if (!msg) return;
-  const t = document.createElement('div');
-  const accent = type === 'err' ? '#DC2626' : type === 'ok' ? '#16A34A' : 'var(--secondary, #8B7FD4)';
-  t.style.cssText = 'pointer-events:auto;padding:10px 14px 10px 12px;border-radius:10px;font-size:12.5px;font-weight:500;line-height:1.45;color:#2d2940;background:#F4EFF3;border-left:3px solid ' + accent + ';box-shadow:0 8px 28px rgba(58,53,80,0.18);animation:ppToastIn .25s ease;';
-  t.textContent = msg;
-  toastWrap.appendChild(t);
-  while (toastWrap.children.length > 4) toastWrap.firstChild.remove();
-  setTimeout(() => {
-    t.style.transition = 'opacity .3s';
-    t.style.opacity = '0';
-    setTimeout(() => t.remove(), 320);
-  }, type === 'err' ? 4200 : 2600);
+  if (type === 'err') console.error('[pro-press]', msg);
+  else console.log('[pro-press]', msg);
 }
 
 // ── Filename slug from alt text (for auto-rename) ──
@@ -276,15 +257,21 @@ function pulseDownloadBtn() {
   });
 }
 
-function showRenameTip() {
-  const firstName = $('fileBody').querySelector('.file-name');
-  if (!firstName) return;
-  firstName.style.position = 'relative';
-  const tip = document.createElement('div');
-  tip.className = 'rename-tooltip';
-  tip.textContent = 'Click name to rename';
-  firstName.appendChild(tip);
-  tip.addEventListener('animationend', () => tip.remove());
+// ── Alt spotlight ──
+// The moment images land in the queue, their Alt buttons light up: a soft
+// rotating gradient border plus a gently pulsing icon, for about 8 seconds.
+// Enough for a new user to feel "there is something here to try", without
+// shouting. It stops for a row the instant that row's Alt button is tapped,
+// and never shows on a row that already has alt text.
+let altSpotlightTimer = null;
+function spotlightAltButtons() {
+  state.files.forEach(e => { if (!e.altText) e.altSpotlight = true; });
+  rebuildTable();
+  clearTimeout(altSpotlightTimer);
+  altSpotlightTimer = setTimeout(() => {
+    state.files.forEach(e => { e.altSpotlight = false; });
+    rebuildTable();
+  }, 8000);
 }
 
 // ── File Management ──
@@ -299,13 +286,10 @@ function addFiles(files) {
     added++;
   }
   if (added) {
-    log('Added ' + added + ' file(s)' + (skip ? ' · ' + skip + ' skipped' : '') + ' — compressing automatically', 'info');
+    log('Added ' + added + ' file(s)' + (skip ? ' · ' + skip + ' skipped' : ''));
     rebuildTable(); updateUI();
+    spotlightAltButtons();
     autoConvert();
-    if (!state.shownRenameTip) {
-      state.shownRenameTip = true;
-      setTimeout(showRenameTip, 600);
-    }
   } else {
     if (skip) log('No images added — ' + skip + ' file(s) skipped (unsupported type or over 50 MB)', 'err');
     rebuildTable(); updateUI();
@@ -375,7 +359,8 @@ function rebuildTable() {
       acts += `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button>`;
     }
     if (e.status !== 'converting') {
-      acts += `<button class="alt-pill${e.altText ? ' alt-done' : ''}" id="altBtn-${e.id}" onclick="event.stopPropagation();genAlt(${e.id})" title="Write alt text with AI">${altBtnHtml(e)}</button>`;
+      const altCls = 'alt-pill' + (e.altText ? ' alt-done' : '') + (!e.altText && e.altSpotlight ? ' alt-spotlight' : '');
+      acts += `<button class="${altCls}" id="altBtn-${e.id}" onclick="event.stopPropagation();genAlt(${e.id})" title="Write alt text with AI">${altBtnHtml(e)}</button>`;
     }
     acts += `<button class="btn-icon danger" onclick="event.stopPropagation();removeOne(${e.id})" title="Remove"><span class="mi">close</span></button>`;
 
@@ -448,7 +433,7 @@ function startInlineRename(id, card) {
       entry.outName = val;
       entry.autoNamed = false; // manual rename wins over auto-alt-rename from now on
       if (entry.resolvedName) entry.resolvedName = val + '.' + ext;
-      log('Renamed → ' + val + '.' + ext, 'ok');
+      log('Renamed → ' + val + '.' + ext);
     } else if (!val) {
       entry.outName = null;
       entry.autoNamed = false;
@@ -476,7 +461,7 @@ async function dlOne(id) {
   const url = URL.createObjectURL(out);
   const a = document.createElement('a'); a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  log('Downloaded: ' + name, 'ok');
+  log('Downloaded: ' + name);
 }
 
 // ── Preview ──
@@ -610,10 +595,7 @@ async function compressEntry(entry) {
         state.lastBlob = blob;
         const oname = baseName(entry.outName || entry.file.name) + '.' + extOf(f);
         entry.resolvedName = oname;
-        const diff = entry.file.size - blob.size;
-        const pct = Math.abs(Math.round(diff / entry.file.size * 100));
-        const sign = diff >= 0 ? '−' : '+';
-        log(baseName(entry.file.name) + ' · ' + fmtB(entry.file.size) + ' → ' + fmtB(blob.size) + ' (' + sign + pct + '%)' + (entry.wasResized ? ' · resized ' + entry.wasResized : ''), 'ok');
+        log(baseName(entry.file.name) + ' · ' + fmtB(entry.file.size) + ' → ' + fmtB(blob.size) + (entry.wasResized ? ' · resized ' + entry.wasResized : ''));
         resolve();
       }, mimeOf(f), q);
     };
@@ -683,14 +665,9 @@ async function runConversion() {
   $('stStatus').textContent = anyErr ? 'Done — some files failed' : 'Done';
   $('stStatus').style.color = 'var(--tertiary)';
   updateUI(); updateStats();
-  if (okCount) {
-    log('Ready to download — ' + (okCount === 1 ? 'your image' : okCount + ' images') + ' converted', 'ok');
-    pulseDownloadBtn();
-    if (!state.shownAltTip && !state.files.some(e => e.altText)) {
-      state.shownAltTip = true;
-      setTimeout(() => log('Tip: tap the Alt button to auto-write alt text for any image', 'info'), 1200);
-    }
-  }
+  // The download button's green ready-pulse is the only "it worked" signal
+  // a user needs — no toast, no popup.
+  if (okCount) pulseDownloadBtn();
   // Files added (or re-queued by a settings change) while we were busy:
   // convert them right away instead of leaving them "waiting".
   if (state.files.some(e => e.status === 'pending')) runConversion();
@@ -715,7 +692,7 @@ $('btnClear').addEventListener('click', () => {
   $('prevCard').classList.remove('mobile-show');
   const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'flex';
   $('stStatus').textContent = 'Ready'; $('stStatus').style.color = 'var(--tertiary)';
-  log('Cleared', 'info');
+  log('Cleared');
 });
 
 // ── Download All (works from BOTH buttons: queue on desktop, pinned bar on mobile) ──
@@ -734,7 +711,7 @@ async function downloadAll() {
   }
 
   bars.forEach(b => { b.disabled = true; b.innerHTML = '<span class="mi">sync</span> Zipping…'; });
-  log('Building ZIP…', 'info');
+  log('Building ZIP…');
   let JSZip;
   try {
     JSZip = await ensureJSZip();
@@ -753,7 +730,7 @@ async function downloadAll() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'compressed.zip';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  log('ZIP downloaded · ' + fmtB(blob.size), 'ok');
+  log('ZIP downloaded · ' + fmtB(blob.size));
   bars.forEach(b => { b.disabled = false; });
   updateStats();
 }
@@ -772,7 +749,7 @@ $('btnCopyLast').addEventListener('click', async () => {
       b = await new Promise(r => c.toBlob(r, 'image/png'));
     }
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]);
-    log('Copied to clipboard', 'ok');
+    log('Copied to clipboard');
     const btn = $('btnCopyLast'); const orig = btn.innerHTML;
     btn.innerHTML = '<span class="mi" style="font-size:16px">check</span> Copied!'; setTimeout(() => btn.innerHTML = orig, 1800);
   } catch (e) { log('Clipboard failed — use Chrome or Edge', 'err'); }
@@ -799,6 +776,9 @@ function closeAltPanel() {
 
 altBackdrop.addEventListener('click', closeAltPanel);
 
+// The only remaining on-screen confirmation: a tiny "Copied!" bubble when the
+// user copies alt text. Clipboard writes give no feedback of their own, so
+// without this a tap on Copy would feel completely dead.
 const altToast = document.createElement('div');
 altToast.className = 'alt-toast';
 altToast.textContent = 'Copied!';
@@ -850,6 +830,7 @@ function resizeForAlt(file) {
 
 function applyAltToEntry(entry, alt) {
   entry.altText = alt;
+  entry.altSpotlight = false; // has alt now — never draw attention again
   if (!entry.outName || entry.autoNamed) {
     entry.autoNamed = true;
     const ext = extOf(entry.fmt || gFmt());
@@ -857,7 +838,7 @@ function applyAltToEntry(entry, alt) {
     if (newName && newName !== entry.outName) {
       entry.outName = newName;
       if (entry.resolvedName) entry.resolvedName = newName + '.' + ext;
-      log('Renamed to match alt text: ' + newName + '.' + ext, 'ok');
+      log('Renamed to match alt text: ' + newName + '.' + ext);
       rebuildTable();
     }
   }
@@ -869,6 +850,7 @@ async function genAlt(id) {
   if (!e) return;
   altEntryId = id;
   altBusy = true;
+  e.altSpotlight = false; // the user engaged with this row — stop the spotlight
 
   const btn = $('altBtn-' + id);
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:14px;animation:spin 0.8s linear infinite">sync</span> Alt'; }
@@ -894,7 +876,7 @@ async function genAlt(id) {
     const data = await res.json();
     showAltResult(data);
     applyAltToEntry(e, data.alt || '');
-    log('Alt text ready — use Copy to paste it into WordPress or your site', 'ok');
+    log('Alt text ready');
   } catch (err) {
     $('altLoading').style.display = 'none';
     $('altResults').style.display = 'block';
