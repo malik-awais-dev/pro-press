@@ -22,12 +22,15 @@ module.exports = async (req, res) => {
     const altStyle = body.altStyle;
     if (!image || !mediaType) return res.status(400).json({ error: 'Missing image data' });
 
+    const key = process.env.ASHNA_API_KEY;
+    if (!key) return res.status(500).json({ error: 'ASHNA_API_KEY env var is not set on this deployment' });
+
     const prompt = (STYLES[altStyle] || STYLES.concise) + ' Return only the alt text itself.';
 
     const apiRes = await fetch('https://api.ashna.ai/v1/api/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + process.env.ASHNA_API_KEY,
+        'Authorization': 'Bearer ' + key,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -43,15 +46,19 @@ module.exports = async (req, res) => {
         ]
       })
     });
-    if (!apiRes.ok) throw new Error('Upstream error ' + apiRes.status);
+    if (!apiRes.ok) {
+      let detail = '';
+      try { detail = (await apiRes.text()).slice(0, 300); } catch (e) {}
+      return res.status(502).json({ error: 'AshnaAI API returned ' + apiRes.status + (detail ? ' - ' + detail : '') });
+    }
 
     const data = await apiRes.json();
     const choice = data.choices && data.choices[0];
     const alt = ((choice && choice.message && choice.message.content) || '').trim();
-    if (!alt) throw new Error('Empty response');
+    if (!alt) return res.status(502).json({ error: 'AshnaAI returned an empty response' });
 
     return res.status(200).json({ alt: alt, title: alt, caption: '' });
   } catch (err) {
-    return res.status(500).json({ error: 'Alt text is temporarily unavailable. Please try again.' });
+    return res.status(500).json({ error: 'Function error: ' + err.message });
   }
 };
