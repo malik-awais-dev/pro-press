@@ -7,6 +7,10 @@ const STYLES = {
   ecommerce: 'Write e-commerce product alt text for this image: name the product and highlight key features and use context.'
 };
 
+// Free-tier Flash models, tried in order. If one is congested (503) or
+// retired (404), we automatically try the next.
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -28,12 +32,25 @@ module.exports = async (req, res) => {
     const geminiKey = process.env.GEMINI_API_KEY;
     let geminiError = null;
     if (geminiKey) {
-      try {
-        const alt = await callGemini(geminiKey, prompt, image, mediaType);
-        if (alt) return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'gemini' });
-      } catch (err) {
-        geminiError = err.message;
-        console.error('Gemini failed:', geminiError);
+      for (const model of GEMINI_MODELS) {
+        try {
+          const alt = await callGemini(geminiKey, model, prompt, image, mediaType);
+          if (alt) return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'gemini' });
+        } catch (err) {
+          geminiError = err.message;
+          console.error('Gemini model ' + model + ' failed:', geminiError);
+          // 503 = temporary congestion: retry this same model once after a pause.
+          // 404 = model retired: move straight to the next model.
+          if (err.status === 503) {
+            await new Promise(r => setTimeout(r, 1500));
+            try {
+              const alt = await callGemini(geminiKey, model, prompt, image, mediaType);
+              if (alt) return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'gemini' });
+            } catch (retryErr) {
+              geminiError = retryErr.message;
+            }
+          }
+        }
       }
     } else {
       geminiError = 'GEMINI_API_KEY env var is NOT present in this deployment build';
@@ -60,10 +77,9 @@ module.exports = async (req, res) => {
   }
 };
 
-async function callGemini(key, prompt, imageBase64, mediaType) {
+async function callGemini(key, model, prompt, imageBase64, mediaType) {
   // AQ.* auth keys must be sent as a header, not as a ?key= query parameter.
-  // gemini-2.5-flash is retired for new users; gemini-3.8-flash is the current Flash model.
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
   const apiRes = await fetch(url, {
     method: 'POST',
     headers: {
