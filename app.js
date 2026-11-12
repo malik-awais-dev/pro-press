@@ -188,20 +188,33 @@ $('gMaxw').addEventListener('change', applySettingsToPending);
 // never starts with a hint that disagrees with the 80% default position.
 $('qHint').textContent = qLabel(parseInt($('gQ').value));
 
+// Settings live-apply to EVERYTHING — including files that were already
+// converted. If a done file's format/quality/resize no longer matches the
+// current settings, it goes back to pending and re-converts automatically.
+// That is the whole promise: "all formats work, even after conversion".
 function applySettingsToPending() {
   if (state.editing) return;
   const fmt = gFmt();
   const q = parseInt($('gQ').value);
   const mw = gMaxw();
   let changed = false;
+  let needReconvert = false;
   state.files.forEach(e => {
     if (e.status === 'pending' || e.status === 'error') {
       if (e.fmt !== fmt) { e.fmt = fmt; changed = true; }
       if (e.quality !== q) { e.quality = q; changed = true; }
       if ((e.maxw || 0) !== mw) { e.maxw = mw; changed = true; }
+    } else if (e.status === 'done') {
+      if (e.fmt !== fmt || e.quality !== q || (e.maxw || 0) !== mw) {
+        e.fmt = fmt; e.quality = q; e.maxw = mw;
+        e.status = 'pending';
+        changed = true;
+        needReconvert = true;
+      }
     }
   });
   if (changed) rebuildTable();
+  if (needReconvert) autoConvert();
 }
 
 // ── Encode support detection ──
@@ -250,19 +263,14 @@ $('fi').addEventListener('change', e => { addFiles(e.target.files); e.target.val
 
 // ── Attention pulses ──
 
-function pulseConvertBtn() {
-  const btn = $('btnConvert');
-  btn.classList.remove('fab-attention');
-  void btn.offsetWidth;
-  btn.classList.add('fab-attention');
-  btn.addEventListener('animationend', () => btn.classList.remove('fab-attention'), { once: true });
-}
-
 function pulseDownloadBtn() {
-  const btn = $('btnDlAll');
-  btn.classList.remove('dl-ready');
-  void btn.offsetWidth;
-  btn.classList.add('dl-ready');
+  ['btnDlAll', 'btnDlQueue'].forEach(id => {
+    const btn = $(id);
+    if (!btn) return;
+    btn.classList.remove('dl-ready');
+    void btn.offsetWidth;
+    btn.classList.add('dl-ready');
+  });
 }
 
 function showRenameTip() {
@@ -288,9 +296,9 @@ function addFiles(files) {
     added++;
   }
   if (added) {
-    log('Added ' + added + ' file(s)' + (skip ? ' · ' + skip + ' skipped' : ''), 'info');
+    log('Added ' + added + ' file(s)' + (skip ? ' · ' + skip + ' skipped' : '') + ' — compressing automatically', 'info');
     rebuildTable(); updateUI();
-    setTimeout(pulseConvertBtn, 300);
+    autoConvert();
     if (!state.shownRenameTip) {
       state.shownRenameTip = true;
       setTimeout(showRenameTip, 600);
@@ -525,10 +533,6 @@ $('btnPrevLg').addEventListener('click', () => {
 
 // ── UI State ──
 
-function convertLabel() {
-  return '<span class="mi">bolt</span> ' + (state.files.length === 1 ? 'Convert It' : 'Convert All');
-}
-
 function downloadLabel(doneCount) {
   const txt = doneCount === 1 ? 'Download image' : 'Download ZIP';
   return '<span class="mi" style="font-size:16px">download</span> ' + txt;
@@ -536,10 +540,6 @@ function downloadLabel(doneCount) {
 
 function updateUI() {
   const any = state.files.length > 0;
-  const allDone = any && state.files.every(e => e.status === 'done');
-  const btn = $('btnConvert');
-  btn.disabled = !any || allDone;
-  btn.innerHTML = convertLabel();
   $('btnClear').disabled = !any;
   updateStats();
 }
@@ -559,9 +559,13 @@ function updateStats() {
     const saved = orig - out; const pct = Math.round(saved / orig * 100);
     $('stSaved').textContent = fmtB(saved) + ' (' + pct + '%)';
   } else { $('stSaved').textContent = '—'; }
-  const dl = $('btnDlAll');
-  dl.disabled = !allDone || !done;
-  dl.innerHTML = downloadLabel(dl.disabled ? 0 : doneCount);
+  // Both download buttons (queue on desktop, pinned bar on mobile) stay in sync.
+  ['btnDlAll', 'btnDlQueue'].forEach(id => {
+    const dl = $(id);
+    if (!dl) return;
+    dl.disabled = !allDone || !done;
+    dl.innerHTML = downloadLabel(dl.disabled ? 0 : doneCount);
+  });
   $('btnCopyLast').disabled = !state.lastBlob;
 }
 
@@ -608,19 +612,27 @@ async function compressEntry(entry) {
   });
 }
 
-// ── Action Buttons ──
+// ── Auto-conversion engine ──
+// There is no Convert button anymore. Files convert themselves the moment
+// they land in the queue (WebP 80% by default), and any settings change
+// re-converts finished files automatically. If files are added or reset
+// while a run is already going, the tail check at the end of the run picks
+// them up — nothing is ever left sitting in "waiting".
 
 const CONVERT_CONCURRENCY = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
 let converting = false;
 
-$('btnConvert').addEventListener('click', async () => {
+function autoConvert() {
+  if (!state.files.some(e => e.status === 'pending')) return;
+  runConversion();
+}
+
+async function runConversion() {
   if (converting) return;
-  const btn = $('btnConvert');
   const todo = state.files.filter(e => e.status === 'pending' || e.status === 'error');
   if (!todo.length) { updateUI(); return; }
 
   converting = true;
-  btn.disabled = true;
   $('stStatus').style.color = 'var(--secondary)';
   const total = todo.length;
   let finished = 0;
@@ -628,7 +640,6 @@ $('btnConvert').addEventListener('click', async () => {
   let autoPreviewDone = false;
 
   function setProgress() {
-    btn.innerHTML = '<span class="mi" style="animation:spin 0.8s linear infinite">sync</span> ' + finished + '/' + total;
     $('stStatus').textContent = 'Converting ' + finished + '/' + total;
   }
   setProgress();
@@ -668,7 +679,10 @@ $('btnConvert').addEventListener('click', async () => {
       setTimeout(() => log('Tip: tap the ✨ Alt button to auto-write alt text for any image', 'info'), 1200);
     }
   }
-});
+  // Files added (or re-queued by a settings change) while we were busy:
+  // convert them right away instead of leaving them "waiting".
+  if (state.files.some(e => e.status === 'pending')) runConversion();
+}
 
 $('btnRemSel').addEventListener('click', () => {
   if (!state.selId) return;
@@ -692,25 +706,29 @@ $('btnClear').addEventListener('click', () => {
   log('Cleared', 'info');
 });
 
-$('btnDlAll').addEventListener('click', async () => {
-  const btn = $('btnDlAll');
+// ── Download All (works from BOTH buttons: queue on desktop, pinned bar on mobile) ──
+
+async function downloadAll() {
   const doneFiles = state.files.filter(e => e.status === 'done' && e.blob);
   if (!doneFiles.length) return;
+  const bars = ['btnDlAll', 'btnDlQueue'].map($).filter(Boolean);
 
   if (doneFiles.length === 1) {
-    btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Saving…';
+    bars.forEach(b => { b.disabled = true; b.innerHTML = '<span class="mi">sync</span> Saving…'; });
     await dlOne(doneFiles[0].id);
-    btn.disabled = false; updateStats();
+    bars.forEach(b => { b.disabled = false; });
+    updateStats();
     return;
   }
 
-  btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Zipping…';
+  bars.forEach(b => { b.disabled = true; b.innerHTML = '<span class="mi">sync</span> Zipping…'; });
   log('Building ZIP…', 'info');
   let JSZip;
   try {
     JSZip = await ensureJSZip();
   } catch (e) {
-    btn.disabled = false; updateStats();
+    bars.forEach(b => { b.disabled = false; });
+    updateStats();
     log('Could not load the ZIP library — check your connection and try again', 'err');
     return;
   }
@@ -724,8 +742,12 @@ $('btnDlAll').addEventListener('click', async () => {
   const a = document.createElement('a'); a.href = url; a.download = 'compressed.zip';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   log('ZIP downloaded · ' + fmtB(blob.size), 'ok');
-  btn.disabled = false; updateStats();
-});
+  bars.forEach(b => { b.disabled = false; });
+  updateStats();
+}
+
+$('btnDlAll').addEventListener('click', downloadAll);
+$('btnDlQueue').addEventListener('click', downloadAll);
 
 $('btnCopyLast').addEventListener('click', async () => {
   if (!state.lastBlob) return;
