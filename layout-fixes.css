@@ -3,8 +3,8 @@
 
 /* ═══════════════════════════════════════════════════════════
    UPLOAD ZONE — full redesign
-   Was: small horizontal box (icon left, text right).
-   Now: centered, confident drop target on every screen size.
+   Default state is now just as attractive as hover: theme-matched
+   gradient fill, visible purple dashed border, soft idle shadow.
    ═══════════════════════════════════════════════════════════ */
 
 .upload-zone {
@@ -15,14 +15,16 @@
   gap: 12px;
   padding: 32px 20px;
   border-width: 2px;
-  background: linear-gradient(180deg, rgba(88,82,114,0.03), rgba(88,82,114,0.07));
+  border-color: rgba(88, 82, 114, 0.40);
+  background: linear-gradient(180deg, #FBF9FB 0%, #F2ECF3 100%);
+  box-shadow: 0 2px 12px rgba(58, 53, 80, 0.08);
 }
 
 .upload-icon-box {
   width: 64px;
   height: 64px;
   border-radius: 18px;
-  background: linear-gradient(135deg, #3A3550, #585272);
+  background: linear-gradient(135deg, #3A3550, #6B5F94);
   box-shadow: 0 10px 24px rgba(58, 53, 80, 0.28);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -38,6 +40,27 @@
 .upload-title { font-size: 15px; }
 .upload-title strong { font-weight: 700; }
 .upload-formats { font-size: 12px; letter-spacing: 0.01em; }
+
+/* ═══════════════════════════════════════════════════════════
+   AD SLOTS — hidden containers ready for AdSense
+   To activate later: paste your <ins class="adsbygoogle"> code
+   into the #adSlotMid / #adSlotFooter divs in index.html and
+   add class="active" to the slot div. No other changes needed.
+   ═══════════════════════════════════════════════════════════ */
+
+.ad-slot {
+  display: none;
+  width: 100%;
+  min-height: 90px;
+  border-radius: 12px;
+  background: rgba(88, 82, 114, 0.05);
+  border: 1px dashed rgba(88, 82, 114, 0.25);
+  overflow: hidden;
+}
+
+.ad-slot.active { display: block; }
+
+.ad-slot .adsbygoogle { display: block; }
 
 /* ═══════════════════════════════════════════════════════════
    ALT BUTTON — discoverable labelled pill
@@ -135,12 +158,10 @@
 .btn-dl.dl-ready { animation: ppDlReady 1.6s ease-out 3; }
 
 /* ═══════════════════════════════════════════════════════════
-   TABLETS — single column, keep grid gap (fixes settings top gap)
+   TABLETS — single column, keep grid gap
    ═══════════════════════════════════════════════════════════ */
 
 @media (max-width: 980px) {
-  /* Use single-column GRID (not display:block) so the existing 14px gap
-     is preserved between the stacked left and right columns. */
   .app-inner {
     display: grid !important;
     grid-template-columns: 1fr !important;
@@ -151,10 +172,8 @@
   .col-left,
   .col-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
 
-  /* Explicit breathing room above the Settings card */
   .settings-card { margin-top: 6px; }
 
-  /* A taller upload zone reads as the primary CTA on tablets */
   .upload-zone { padding: 26px 18px; }
 }
 
@@ -163,23 +182,29 @@
    ═══════════════════════════════════════════════════════════ */
 
 @media (max-width: 760px) {
+  /* Breathing room from the sticky header + vertical centering:
+     the app no longer hugs the very top of the screen. */
+  .app-wrap { padding-top: 22px; padding-bottom: 32px; align-items: flex-start; }
+
   .topbar-inner, .app-wrap { padding-left: 14px; padding-right: 14px; }
 
-  /* ── Upload zone: same centered design, sized for phones ── */
+  /* ── Upload zone sized for phones ── */
   .upload-zone { padding: 24px 14px; gap: 10px; border-width: 2px; }
   .upload-icon-box { width: 54px; height: 54px; border-radius: 15px; }
   .upload-icon-box .mi { font-size: 26px; }
   .upload-title { font-size: 14px; }
   .upload-formats { font-size: 11px; }
 
-  /* ── Preview card hidden until the user taps the eye icon ──
-     (app.js only auto-opens it on desktop) */
+  /* ── Preview card hidden until the user taps the eye icon ── */
   #prevCard { display: none; }
   #prevCard.mobile-show { display: block; }
 
-  /* ── File rows: two-line layout instead of one cramped line ──
-     Line 1: thumb · name/meta · % pill
-     Line 2: action buttons, indented to align under the text */
+  /* ── Settings card: stats-status no longer touches the bottom ── */
+  .stats-status { padding-bottom: 12px; }
+  .settings-card { padding-bottom: 4px; }
+  .action-bar { padding: 0 16px 16px; }
+
+  /* ── File rows: two-line layout ── */
   .file-row {
     flex-wrap: wrap;
     gap: 8px;
@@ -200,14 +225,13 @@
     margin-top: 8px;
     gap: 6px;
     justify-content: flex-start;
-    padding-left: 54px; /* 46px thumb + 8px gap → aligns under the filename */
+    padding-left: 54px;
   }
 
   .btn-icon { width: 34px; height: 34px; }
   .btn-icon .mi { font-size: 17px; }
   .alt-pill { height: 32px; }
 
-  /* done/error/converting accent bars stay visible */
   .file-row.done-row,
   .file-row.error-row,
   .file-row.converting-row { border-left-width: 3px; }
@@ -225,6 +249,9 @@
   .info-item { font-size: 11px; }
 
   .prev-ctrl-btn { padding: 6px 10px; }
+
+  /* Ad slots stack as full-width blocks on phones */
+  .ad-slot.active { min-height: 100px; }
 }
 
 /* ═══════════════════════════════════════════════════════════
