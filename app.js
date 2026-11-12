@@ -11,7 +11,7 @@ const gMaxw = () => 0;
 const qMap = [[10, 'Very low — heavy artifacts'], [20, 'Low — visible loss'], [30, 'Low'], [40, 'Fair'], [50, 'Moderate'], [60, 'Moderate'], [70, 'Good'], [80, 'Good — recommended'], [90, 'Excellent'], [95, 'Near lossless'], [100, 'Maximum quality']];
 function qLabel(v) { let r = qMap[0][1]; for (const [k, l] of qMap) if (v >= k) r = l; return r; }
 
-// ── Toasts (log() is now user-visible) ──
+// ── Toasts (log() is user-visible) ──
 
 (function injectToastStyle() {
   const s = document.createElement('style');
@@ -39,6 +39,119 @@ function log(msg, type) {
   }, type === 'err' ? 4200 : 2600);
 }
 
+// ── Filename slug from alt text (for auto-rename) ──
+
+function slugify(text, maxWords) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .split(/\s+/)
+    .slice(0, maxWords || 6)
+    .join('-')
+    .slice(0, 60);
+}
+
+function escapeXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// ── Alt-text metadata embedding (real file bytes, so other sites can read it) ──
+// PNG: standard tEXt chunk with keyword "Description" — read by most tools.
+// JPEG: XMP packet (dc:description) — what WordPress & CMSs import as alt text.
+// WebP/AVIF: container editing is far more complex; skipped (alt still in the app).
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function embedAltPNG(bytes, alt) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50) return bytes;
+  let pos = 8, insertAt = -1;
+  while (pos + 8 <= bytes.length) {
+    const len = dv.getUint32(pos);
+    const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+    if (type === 'IEND') { insertAt = pos; break; }
+    pos += 12 + len;
+  }
+  if (insertAt < 0) return bytes;
+  const enc = new TextEncoder();
+  const textBytes = enc.encode('Description\0' + alt);
+  const chunk = new Uint8Array(12 + textBytes.length);
+  const cdv = new DataView(chunk.buffer);
+  cdv.setUint32(0, textBytes.length);
+  chunk.set(enc.encode('tEXt'), 4);
+  chunk.set(textBytes, 12);
+  cdv.setUint32(8 + textBytes.length, crc32(chunk.subarray(4, 8 + textBytes.length)));
+  const out = new Uint8Array(bytes.length + chunk.length);
+  out.set(bytes.subarray(0, insertAt));
+  out.set(chunk, insertAt);
+  out.set(bytes.subarray(insertAt), insertAt + chunk.length);
+  return out;
+}
+
+function embedAltJPEG(bytes, alt) {
+  if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return bytes;
+  const enc = new TextEncoder();
+  const xmp = enc.encode(
+    '<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>' +
+    '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' +
+    '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">' +
+    '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">' + escapeXml(alt) + '</rdf:li></rdf:Alt></dc:description>' +
+    '</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>');
+  const ns = enc.encode('http://ns.adobe.com/xap/1.0/\0');
+  const segDataLen = ns.length + xmp.length;
+  const seg = new Uint8Array(4 + segDataLen);
+  const sdv = new DataView(seg.buffer);
+  sdv.setUint16(0, 0xFFE1);
+  sdv.setUint16(2, segDataLen + 2);
+  seg.set(ns, 4);
+  seg.set(xmp, 4 + ns.length);
+  // Insert after SOI; skip past APP0/JFIF so it stays first (JFIF convention).
+  let at = 2;
+  if (bytes.length > 4 && bytes[2] === 0xFF && bytes[3] === 0xE0) {
+    const l = (bytes[4] << 8) | bytes[5];
+    at = 2 + 2 + l;
+  }
+  const out = new Uint8Array(bytes.length + seg.length);
+  out.set(bytes.subarray(0, at));
+  out.set(seg, at);
+  out.set(bytes.subarray(at), at + seg.length);
+  return out;
+}
+
+async function blobWithAlt(blob, entry) {
+  if (!entry || !entry.altText) return blob;
+  const f = entry.fmt || gFmt();
+  if (f !== 'png' && f !== 'jpeg') return blob;
+  try {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const out = f === 'png' ? embedAltPNG(bytes, entry.altText) : embedAltJPEG(bytes, entry.altText);
+    return new Blob([out], { type: mimeOf(f) });
+  } catch (err) {
+    console.error('Alt embed failed:', err);
+    return blob;
+  }
+}
+
+function altEmbeddable(entry) {
+  const f = entry && entry.fmt ? entry.fmt : gFmt();
+  return !!(entry && entry.altText && (f === 'png' || f === 'jpeg'));
+}
+
 // ── Quality & Format Controls ──
 
 $('gQ').addEventListener('input', () => {
@@ -56,8 +169,7 @@ $('gFmt').addEventListener('change', () => {
   applySettingsToPending();
 });
 
-// Settings changes now live-apply to queued (not yet converted) files,
-// instead of being silently frozen at the values captured when files were added.
+// Settings changes live-apply to queued (not yet converted) files.
 function applySettingsToPending() {
   if (state.editing) return;
   const fmt = gFmt();
@@ -72,7 +184,7 @@ function applySettingsToPending() {
   if (changed) rebuildTable();
 }
 
-// ── Encode support detection (AVIF/WebP are not encodable in every browser) ──
+// ── Encode support detection ──
 
 const fmtSupport = { webp: true, avif: true, jpeg: true, png: true };
 
@@ -124,6 +236,13 @@ function pulseConvertBtn() {
   void btn.offsetWidth;
   btn.classList.add('fab-attention');
   btn.addEventListener('animationend', () => btn.classList.remove('fab-attention'), { once: true });
+}
+
+function pulseDownloadBtn() {
+  const btn = $('btnDlAll');
+  btn.classList.remove('dl-ready');
+  void btn.offsetWidth;
+  btn.classList.add('dl-ready');
 }
 
 function showRenameTip() {
@@ -217,11 +336,11 @@ function rebuildTable() {
     }
     if (e.status !== 'converting') {
       const altBtnId = 'altBtn-' + e.id;
-      acts += `<button class="btn-icon btn-icon-alt" id="${altBtnId}" onclick="event.stopPropagation();genAlt(${e.id})" title="Generate Alt Text">Alt</button>`;
+      const altIcon = e.altText ? '✓' : 'Alt';
+      acts += `<button class="btn-icon btn-icon-alt" id="${altBtnId}" onclick="event.stopPropagation();genAlt(${e.id})" title="Generate Alt Text">${altIcon}</button>`;
     }
     acts += `<button class="btn-icon danger" onclick="event.stopPropagation();removeOne(${e.id})" title="Remove"><span class="mi">close</span></button>`;
 
-    // Honest indeterminate bar while converting (no fake 50%).
     const progHtml = e.status === 'converting'
       ? '<div class="file-progress" style="overflow:hidden"><div class="file-progress-bar" style="width:35%;animation:ppBarSlide 1.1s ease-in-out infinite"></div></div>'
       : '';
@@ -289,10 +408,12 @@ function startInlineRename(id, card) {
     const val = input.value.trim();
     if (val && val !== baseName(entry.file.name)) {
       entry.outName = val;
+      entry.autoNamed = false; // manual rename wins over auto-alt-rename from now on
       if (entry.resolvedName) entry.resolvedName = val + '.' + ext;
       log('Renamed → ' + val + '.' + ext, 'ok');
     } else if (!val) {
       entry.outName = null;
+      entry.autoNamed = false;
       entry.resolvedName = null;
     }
     state.editing = false;
@@ -307,14 +428,17 @@ function startInlineRename(id, card) {
   input.addEventListener('click', ev => ev.stopPropagation());
 }
 
-// ── Download Single ──
+// ── Download Single (embeds alt text into the file when possible) ──
 
-function dlOne(id) {
-  const e = state.files.find(x => x.id === id); if (!e || !e.blob) return;
-  const url = URL.createObjectURL(e.blob);
-  const a = document.createElement('a'); a.href = url; a.download = e.resolvedName || baseName(e.file.name) + '.' + extOf(e.fmt || gFmt());
+async function dlOne(id) {
+  const e = state.files.find(x => x.id === id);
+  if (!e || !e.blob) return;
+  const out = await blobWithAlt(e.blob, e);
+  const name = e.resolvedName || baseName(e.file.name) + '.' + extOf(e.fmt || gFmt());
+  const url = URL.createObjectURL(out);
+  const a = document.createElement('a'); a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  log('Downloaded: ' + (e.resolvedName || e.file.name), 'ok');
+  log('Downloaded: ' + name + (altEmbeddable(e) ? ' · alt text embedded' : ''), 'ok');
 }
 
 // ── Preview ──
@@ -371,6 +495,11 @@ function convertLabel() {
   return '<span class="mi">bolt</span> ' + (state.files.length === 1 ? 'Convert It' : 'Convert All');
 }
 
+function downloadLabel(doneCount) {
+  const txt = doneCount === 1 ? 'Download image' : 'Download ZIP';
+  return '<span class="mi" style="font-size:16px">download</span> ' + txt;
+}
+
 function updateUI() {
   const any = state.files.length > 0;
   const allDone = any && state.files.every(e => e.status === 'done');
@@ -387,6 +516,7 @@ function updateStats() {
   const out = state.files.reduce((s, e) => s + (e.outSize || 0), 0);
   const done = state.files.some(e => e.status === 'done');
   const allDone = n > 0 && state.files.every(e => e.status === 'done' || e.status === 'error');
+  const doneCount = state.files.filter(e => e.status === 'done').length;
   $('stFiles').textContent = n;
   const qb = $('queueBadge'); if (qb) qb.textContent = n || '';
   $('stOrig').textContent = fmtB(orig) || '—';
@@ -395,7 +525,9 @@ function updateStats() {
     const saved = orig - out; const pct = Math.round(saved / orig * 100);
     $('stSaved').textContent = fmtB(saved) + ' (' + pct + '%)';
   } else { $('stSaved').textContent = '—'; }
-  $('btnDlAll').disabled = !allDone || !done;
+  const dl = $('btnDlAll');
+  dl.disabled = !allDone || !done;
+  if (!dl.disabled) dl.innerHTML = downloadLabel(doneCount);
   $('btnCopyLast').disabled = !state.lastBlob;
 }
 
@@ -441,7 +573,6 @@ async function compressEntry(entry) {
 
 // ── Action Buttons ──
 
-// Convert up to a few images at once (instead of strictly one-by-one).
 const CONVERT_CONCURRENCY = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
 let converting = false;
 
@@ -459,7 +590,6 @@ $('btnConvert').addEventListener('click', async () => {
   let next = 0;
   let autoPreviewDone = false;
 
-  // Real batch progress: finished / total, on the button and the status line.
   function setProgress() {
     btn.innerHTML = '<span class="mi" style="animation:spin 0.8s linear infinite">sync</span> ' + finished + '/' + total;
     $('stStatus').textContent = 'Converting ' + finished + '/' + total;
@@ -487,9 +617,14 @@ $('btnConvert').addEventListener('click', async () => {
 
   converting = false;
   const anyErr = state.files.some(e => e.status === 'error');
+  const okCount = state.files.filter(e => e.status === 'done').length;
   $('stStatus').textContent = anyErr ? 'Done — some files failed' : 'Done';
   $('stStatus').style.color = 'var(--tertiary)';
   updateUI(); updateStats();
+  if (okCount) {
+    log('Ready to download — ' + (okCount === 1 ? 'your image' : okCount + ' images') + ' converted', 'ok');
+    pulseDownloadBtn();
+  }
 });
 
 $('btnRemSel').addEventListener('click', () => {
@@ -512,21 +647,31 @@ $('btnClear').addEventListener('click', () => {
 });
 
 $('btnDlAll').addEventListener('click', async () => {
-  const btn = $('btnDlAll'); btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Zipping…';
+  const btn = $('btnDlAll');
+  const doneFiles = state.files.filter(e => e.status === 'done' && e.blob);
+  if (!doneFiles.length) return;
+
+  // Single image: download it directly — no pointless ZIP.
+  if (doneFiles.length === 1) {
+    btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Saving…';
+    await dlOne(doneFiles[0].id);
+    btn.disabled = false; updateStats();
+    return;
+  }
+
+  btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Zipping…';
   log('Building ZIP…', 'info');
   const zip = new JSZip();
-  for (const entry of state.files) {
-    if (entry.blob) {
-      const ab = await entry.blob.arrayBuffer();
-      zip.file(entry.resolvedName || baseName(entry.file.name) + '.' + extOf(entry.fmt || gFmt()), ab);
-    }
+  for (const entry of doneFiles) {
+    const ab = await (await blobWithAlt(entry.blob, entry)).arrayBuffer();
+    zip.file(entry.resolvedName || baseName(entry.file.name) + '.' + extOf(entry.fmt || gFmt()), ab);
   }
   const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'compressed.zip';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   log('ZIP downloaded · ' + fmtB(blob.size), 'ok');
-  btn.innerHTML = '<span class="mi">download</span> Download ZIP'; btn.disabled = false; updateStats();
+  btn.disabled = false; updateStats();
 });
 
 $('btnCopyLast').addEventListener('click', async () => {
@@ -550,6 +695,24 @@ $('btnCopyLast').addEventListener('click', async () => {
 
 let altEntryId = null;
 let altBusy = false;
+
+// Alt panel opens as a floating modal with a dim backdrop, so it never
+// pushes/overlaps the Settings card no matter how many images you process.
+const altBackdrop = document.createElement('div');
+altBackdrop.id = 'altBackdrop';
+document.body.appendChild(altBackdrop);
+
+function openAltPanel() {
+  $('altCard').style.display = 'block';
+  altBackdrop.style.display = 'block';
+}
+
+function closeAltPanel() {
+  $('altCard').style.display = 'none';
+  altBackdrop.style.display = 'none';
+}
+
+altBackdrop.addEventListener('click', closeAltPanel);
 
 const altToast = document.createElement('div');
 altToast.className = 'alt-toast';
@@ -600,6 +763,27 @@ function resizeForAlt(file) {
   });
 }
 
+// After generating alt text: store it, auto-rename the file to match
+// (unless the user renamed it manually), so the download name AND the
+// embedded metadata both describe the image.
+function applyAltToEntry(entry, alt) {
+  entry.altText = alt;
+  if (!entry.outName || entry.autoNamed) {
+    entry.autoNamed = true;
+    const ext = extOf(entry.fmt || gFmt());
+    const newName = slugify(alt, 6);
+    if (newName && newName !== entry.outName) {
+      entry.outName = newName;
+      if (entry.resolvedName) entry.resolvedName = newName + '.' + ext;
+      log('Renamed to match alt text: ' + newName + '.' + ext, 'ok');
+      rebuildTable();
+    }
+  }
+  const embed = altEmbeddable(entry);
+  log('Alt text saved — it will be embedded in ' + (entry.fmt || gFmt()).toUpperCase() + ' downloads' +
+      (embed ? '' : ' (PNG/JPEG embed supported; WebP/AVIF keep alt in the app only)'), 'info');
+}
+
 async function genAlt(id) {
   if (altBusy) return;
   const e = state.files.find(x => x.id === id);
@@ -610,11 +794,10 @@ async function genAlt(id) {
   const btn = $('altBtn-' + id);
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:16px;animation:spin 0.8s linear infinite">sync</span>'; }
 
-  $('altCard').style.display = 'block';
+  openAltPanel();
   $('altLoading').style.display = 'flex';
   $('altResults').style.display = 'none';
   $('altFileName').textContent = e.file.name;
-  setTimeout(() => $('altCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
   try {
     const resized = await resizeForAlt(e.file);
@@ -631,7 +814,7 @@ async function genAlt(id) {
     }
     const data = await res.json();
     showAltResult(data);
-    log('Alt text generated for ' + e.file.name, 'ok');
+    applyAltToEntry(e, data.alt || '');
   } catch (err) {
     $('altLoading').style.display = 'none';
     $('altResults').style.display = 'block';
@@ -642,7 +825,7 @@ async function genAlt(id) {
     log('Alt text error: ' + err.message, 'err');
   } finally {
     altBusy = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Alt'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Alt'; rebuildTable(); }
   }
 }
 
@@ -651,7 +834,6 @@ function showAltResult(data) {
   $('altResults').style.display = 'block';
 
   const alt = data.alt || '';
-  const title = data.title || '';
   const chars = alt.length;
   const charColor = chars > 125 ? 'var(--secondary)' : 'var(--tertiary)';
 
@@ -669,6 +851,4 @@ function showAltResult(data) {
     </div>`;
 }
 
-$('btnCloseAlt').addEventListener('click', () => {
-  $('altCard').style.display = 'none';
-});
+$('btnCloseAlt').addEventListener('click', closeAltPanel);
