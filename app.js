@@ -13,6 +13,25 @@ const gMaxw = () => parseInt($('gMaxw').value) || 0;
 const qMap = [[10, 'Very low — heavy artifacts'], [20, 'Low — visible loss'], [30, 'Low'], [40, 'Fair'], [50, 'Moderate'], [60, 'Moderate'], [70, 'Good'], [80, 'Good — recommended'], [90, 'Excellent'], [95, 'Near lossless'], [100, 'Maximum quality']];
 function qLabel(v) { let r = qMap[0][1]; for (const [k, l] of qMap) if (v >= k) r = l; return r; }
 
+// ── Lazy JSZip loader ──
+// The ZIP library (~100 KB) is NOT loaded on page load anymore — it only
+// downloads the first time a visitor actually builds a ZIP. Single-file
+// downloads and everything else need no extra library at all.
+let jsZipPromise = null;
+function ensureJSZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (!jsZipPromise) {
+    jsZipPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      s.onload = () => window.JSZip ? resolve(window.JSZip) : reject(new Error('ZIP library unavailable'));
+      s.onerror = () => { jsZipPromise = null; reject(new Error('Could not download the ZIP library')); };
+      document.head.appendChild(s);
+    });
+  }
+  return jsZipPromise;
+}
+
 // ── Toasts (log() is user-visible) ──
 
 (function injectToastStyle() {
@@ -321,7 +340,6 @@ function rebuildTable() {
     let metaLine = fmtB(e.file.size);
     if (e.status === 'converting') metaLine = 'Compressing…';
     else if (e.status === 'done' && e.outSize) {
-      // Show output dimensions when the image was resized (e.g. "3300→800px wide")
       const dimTxt = (e.outW && e.wasResized) ? e.wasResized : '';
       metaLine = fmtB(e.file.size) + ' → ' + outTxt + ' · ' + ext.toUpperCase() + (dimTxt ? ' · ' + dimTxt : '');
     }
@@ -543,9 +561,6 @@ function updateStats() {
   } else { $('stSaved').textContent = '—'; }
   const dl = $('btnDlAll');
   dl.disabled = !allDone || !done;
-  // QA: keep the label in sync with the actual state — a disabled button now
-  // always shows the neutral "Download ZIP", so the label never goes stale
-  // after Clear All (previously it kept saying "Download image").
   dl.innerHTML = downloadLabel(dl.disabled ? 0 : doneCount);
   $('btnCopyLast').disabled = !state.lastBlob;
 }
@@ -648,7 +663,6 @@ $('btnConvert').addEventListener('click', async () => {
   if (okCount) {
     log('Ready to download — ' + (okCount === 1 ? 'your image' : okCount + ' images') + ' converted', 'ok');
     pulseDownloadBtn();
-    // First conversion is the moment to teach the hidden treasure: the AI Alt button.
     if (!state.shownAltTip && !state.files.some(e => e.altText)) {
       state.shownAltTip = true;
       setTimeout(() => log('Tip: tap the ✨ Alt button to auto-write alt text for any image', 'info'), 1200);
@@ -667,9 +681,6 @@ $('btnRemSel').addEventListener('click', () => {
 
 $('btnClear').addEventListener('click', () => {
   if (converting) { log('Wait for the conversion to finish first', 'err'); return; }
-  // QA: revoke every thumbnail + preview object URL so a long session doesn't
-  // accumulate memory; dropping src attributes instead of clearing to '' avoids
-  // a spurious 404 request to the page URL in some browsers.
   state.files.forEach(e => { if (e.thumbUrl) URL.revokeObjectURL(e.thumbUrl); });
   prevUrls.forEach(u => URL.revokeObjectURL(u)); prevUrls = [];
   state.files = []; state.selId = null; state.lastBlob = null;
@@ -695,6 +706,14 @@ $('btnDlAll').addEventListener('click', async () => {
 
   btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Zipping…';
   log('Building ZIP…', 'info');
+  let JSZip;
+  try {
+    JSZip = await ensureJSZip();
+  } catch (e) {
+    btn.disabled = false; updateStats();
+    log('Could not load the ZIP library — check your connection and try again', 'err');
+    return;
+  }
   const zip = new JSZip();
   for (const entry of doneFiles) {
     const ab = await (await blobWithAlt(entry.blob, entry)).arrayBuffer();
