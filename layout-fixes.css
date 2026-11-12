@@ -2,9 +2,16 @@
    Kept separate so base styles stay untouched. */
 
 /* ═══════════════════════════════════════════════════════════
+   ICON FONT GATE — prevent ligature text flash on load
+   index.html adds .fonts-ready to <html> once the Material Symbols
+   font has really loaded. Until then, icon glyphs stay invisible
+   (the boxes keep their size; no raw "upload"/"bolt" words appear).
+   ═══════════════════════════════════════════════════════════ */
+
+html:not(.fonts-ready) .mi { visibility: hidden; }
+
+/* ═══════════════════════════════════════════════════════════
    UPLOAD ZONE — full redesign
-   Default state is now just as attractive as hover: theme-matched
-   gradient fill, visible purple dashed border, soft idle shadow.
    ═══════════════════════════════════════════════════════════ */
 
 .upload-zone {
@@ -43,9 +50,6 @@
 
 /* ═══════════════════════════════════════════════════════════
    AD SLOTS — hidden containers ready for AdSense
-   To activate later: paste your <ins class="adsbygoogle"> code
-   into the #adSlotMid / #adSlotFooter divs in index.html and
-   add class="active" to the slot div. No other changes needed.
    ═══════════════════════════════════════════════════════════ */
 
 .ad-slot {
@@ -182,8 +186,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 @media (max-width: 760px) {
-  /* Breathing room from the sticky header + vertical centering:
-     the app no longer hugs the very top of the screen. */
+  /* Breathing room from the sticky header */
   .app-wrap { padding-top: 22px; padding-bottom: 32px; align-items: flex-start; }
 
   .topbar-inner, .app-wrap { padding-left: 14px; padding-right: 14px; }
@@ -199,10 +202,18 @@
   #prevCard { display: none; }
   #prevCard.mobile-show { display: block; }
 
-  /* ── Settings card: stats-status no longer touches the bottom ── */
+  /* ── Settings card ──
+     stats-status keeps its own bottom padding; NO extra padding on
+     .action-bar (the base styles already margin the buttons — adding
+     padding here created the white stripe behind Convert/Download). */
   .stats-status { padding-bottom: 12px; }
   .settings-card { padding-bottom: 4px; }
-  .action-bar { padding: 0 16px 16px; }
+
+  /* Stats grid: compact cells so long values never break the layout */
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .stat-item { padding: 10px 10px 8px; min-width: 0; }
+  .stat-val { font-size: 14px; line-height: 1.25; overflow-wrap: break-word; }
+  .stat-lbl { font-size: 10px; margin-bottom: 2px; }
 
   /* ── File rows: two-line layout ── */
   .file-row {
@@ -219,13 +230,14 @@
 
   .file-pct { font-size: 10.5px; padding: 3px 8px; }
 
+  /* Buttons align flush left with the thumbnail — no indent */
   .file-actions {
     order: 4;
     flex-basis: 100%;
     margin-top: 8px;
     gap: 6px;
     justify-content: flex-start;
-    padding-left: 54px;
+    padding-left: 0;
   }
 
   .btn-icon { width: 34px; height: 34px; }
