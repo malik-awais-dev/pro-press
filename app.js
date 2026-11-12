@@ -1,4 +1,4 @@
-const state = { files: [], nextId: 0, lastBlob: null, selId: null, editing: false, shownRenameTip: false, shownAltTip: false };
+const state = { files: [], nextId: 0, lastBlob: null, selId: null, editing: false };
 const $ = id => document.getElementById(id);
 const fmtB = b => !b ? '0 B' : b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
 const extOf = f => ({ webp: 'webp', avif: 'avif', jpeg: 'jpg', png: 'png' }[f]);
@@ -32,32 +32,24 @@ function ensureJSZip() {
   return jsZipPromise;
 }
 
-// ── Toasts (log() is user-visible) ──
-
-(function injectToastStyle() {
-  const s = document.createElement('style');
-  s.textContent = '@keyframes ppToastIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}' +
-    '@keyframes ppBarSlide{0%{margin-left:-35%}100%{margin-left:100%}}';
-  document.head.appendChild(s);
-})();
-
-const toastWrap = document.createElement('div');
-toastWrap.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(340px,86vw);pointer-events:none;';
-document.body.appendChild(toastWrap);
-
+// ── Notifications ──
+// Owner decision: NO user-facing toasts at all. The queue rows themselves
+// (spinner → size result → green % badge), the status line in the Queue
+// card, and the download button's ready-pulse already tell the user
+// everything they need — toasts just repeated the UI and cluttered phones.
+// log() stays as a developer-console trace so failures are still
+// diagnosable in DevTools, but nothing renders from here.
+// The ONE on-screen error channel left: when files are rejected outright
+// (not an image, or over 50 MB), the queue status line says so in red —
+// otherwise a dropped file would vanish with no explanation at all.
 function log(msg, type) {
-  if (!msg) return;
-  const t = document.createElement('div');
-  const accent = type === 'err' ? '#DC2626' : type === 'ok' ? '#16A34A' : 'var(--secondary, #8B7FD4)';
-  t.style.cssText = 'pointer-events:auto;padding:10px 14px 10px 12px;border-radius:10px;font-size:12.5px;font-weight:500;line-height:1.45;color:#2d2940;background:#F4EFF3;border-left:3px solid ' + accent + ';box-shadow:0 8px 28px rgba(58,53,80,0.18);animation:ppToastIn .25s ease;';
-  t.textContent = msg;
-  toastWrap.appendChild(t);
-  while (toastWrap.children.length > 4) toastWrap.firstChild.remove();
-  setTimeout(() => {
-    t.style.transition = 'opacity .3s';
-    t.style.opacity = '0';
-    setTimeout(() => t.remove(), 320);
-  }, type === 'err' ? 4200 : 2600);
+  if (type === 'err') console.error('[pro-press]', msg);
+  else console.log('[pro-press]', msg);
+}
+
+function showStatusError(msg) {
+  $('stStatus').textContent = msg;
+  $('stStatus').style.color = 'var(--error, #DC2626)';
 }
 
 // ── Filename slug from alt text (for auto-rename) ──
@@ -188,20 +180,33 @@ $('gMaxw').addEventListener('change', applySettingsToPending);
 // never starts with a hint that disagrees with the 80% default position.
 $('qHint').textContent = qLabel(parseInt($('gQ').value));
 
+// Settings live-apply to EVERYTHING — including files that were already
+// converted. If a done file's format/quality/resize no longer matches the
+// current settings, it goes back to pending and re-converts automatically.
+// That is the whole promise: "all formats work, even after conversion".
 function applySettingsToPending() {
   if (state.editing) return;
   const fmt = gFmt();
   const q = parseInt($('gQ').value);
   const mw = gMaxw();
   let changed = false;
+  let needReconvert = false;
   state.files.forEach(e => {
     if (e.status === 'pending' || e.status === 'error') {
       if (e.fmt !== fmt) { e.fmt = fmt; changed = true; }
       if (e.quality !== q) { e.quality = q; changed = true; }
       if ((e.maxw || 0) !== mw) { e.maxw = mw; changed = true; }
+    } else if (e.status === 'done') {
+      if (e.fmt !== fmt || e.quality !== q || (e.maxw || 0) !== mw) {
+        e.fmt = fmt; e.quality = q; e.maxw = mw;
+        e.status = 'pending';
+        changed = true;
+        needReconvert = true;
+      }
     }
   });
   if (changed) rebuildTable();
+  if (needReconvert) autoConvert();
 }
 
 // ── Encode support detection ──
@@ -250,30 +255,31 @@ $('fi').addEventListener('change', e => { addFiles(e.target.files); e.target.val
 
 // ── Attention pulses ──
 
-function pulseConvertBtn() {
-  const btn = $('btnConvert');
-  btn.classList.remove('fab-attention');
-  void btn.offsetWidth;
-  btn.classList.add('fab-attention');
-  btn.addEventListener('animationend', () => btn.classList.remove('fab-attention'), { once: true });
-}
-
 function pulseDownloadBtn() {
-  const btn = $('btnDlAll');
-  btn.classList.remove('dl-ready');
-  void btn.offsetWidth;
-  btn.classList.add('dl-ready');
+  ['btnDlAll', 'btnDlQueue'].forEach(id => {
+    const btn = $(id);
+    if (!btn) return;
+    btn.classList.remove('dl-ready');
+    void btn.offsetWidth;
+    btn.classList.add('dl-ready');
+  });
 }
 
-function showRenameTip() {
-  const firstName = $('fileBody').querySelector('.file-name');
-  if (!firstName) return;
-  firstName.style.position = 'relative';
-  const tip = document.createElement('div');
-  tip.className = 'rename-tooltip';
-  tip.textContent = 'Click name to rename';
-  firstName.appendChild(tip);
-  tip.addEventListener('animationend', () => tip.remove());
+// ── Alt spotlight ──
+// The moment images land in the queue, their Alt buttons light up: a soft
+// rotating gradient ring plus a gently pulsing icon, for about 8 seconds.
+// Enough for a new user to feel "there is something here to try", without
+// shouting. It stops for a row the instant that row's Alt button is tapped,
+// and never shows on a row that already has alt text.
+let altSpotlightTimer = null;
+function spotlightAltButtons() {
+  state.files.forEach(e => { if (!e.altText) e.altSpotlight = true; });
+  rebuildTable();
+  clearTimeout(altSpotlightTimer);
+  altSpotlightTimer = setTimeout(() => {
+    state.files.forEach(e => { e.altSpotlight = false; });
+    rebuildTable();
+  }, 8000);
 }
 
 // ── File Management ──
@@ -288,15 +294,15 @@ function addFiles(files) {
     added++;
   }
   if (added) {
-    log('Added ' + added + ' file(s)' + (skip ? ' · ' + skip + ' skipped' : ''), 'info');
+    log('Added ' + added + ' file(s)' + (skip ? ' · ' + skip + ' skipped' : ''));
     rebuildTable(); updateUI();
-    setTimeout(pulseConvertBtn, 300);
-    if (!state.shownRenameTip) {
-      state.shownRenameTip = true;
-      setTimeout(showRenameTip, 600);
-    }
+    spotlightAltButtons();
+    autoConvert();
   } else {
-    if (skip) log('No images added — ' + skip + ' file(s) skipped (unsupported type or over 50 MB)', 'err');
+    // Nothing made it in. With toasts gone this MUST still be visible —
+    // otherwise a rejected file disappears with zero explanation. The
+    // queue status line (right under the file list) carries the reason.
+    if (skip) showStatusError(skip + ' not added — image over 50 MB or unsupported type');
     rebuildTable(); updateUI();
   }
 }
@@ -364,7 +370,8 @@ function rebuildTable() {
       acts += `<button class="btn-icon" onclick="event.stopPropagation();dlOne(${e.id})" title="Download"><span class="mi">download</span></button>`;
     }
     if (e.status !== 'converting') {
-      acts += `<button class="alt-pill${e.altText ? ' alt-done' : ''}" id="altBtn-${e.id}" onclick="event.stopPropagation();genAlt(${e.id})" title="Write alt text with AI">${altBtnHtml(e)}</button>`;
+      const altCls = 'alt-pill' + (e.altText ? ' alt-done' : '') + (!e.altText && e.altSpotlight ? ' alt-spotlight' : '');
+      acts += `<button class="${altCls}" id="altBtn-${e.id}" onclick="event.stopPropagation();genAlt(${e.id})" title="Write alt text with AI">${altBtnHtml(e)}</button>`;
     }
     acts += `<button class="btn-icon danger" onclick="event.stopPropagation();removeOne(${e.id})" title="Remove"><span class="mi">close</span></button>`;
 
@@ -437,7 +444,7 @@ function startInlineRename(id, card) {
       entry.outName = val;
       entry.autoNamed = false; // manual rename wins over auto-alt-rename from now on
       if (entry.resolvedName) entry.resolvedName = val + '.' + ext;
-      log('Renamed → ' + val + '.' + ext, 'ok');
+      log('Renamed → ' + val + '.' + ext);
     } else if (!val) {
       entry.outName = null;
       entry.autoNamed = false;
@@ -465,7 +472,7 @@ async function dlOne(id) {
   const url = URL.createObjectURL(out);
   const a = document.createElement('a'); a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  log('Downloaded: ' + name, 'ok');
+  log('Downloaded: ' + name);
 }
 
 // ── Preview ──
@@ -475,6 +482,13 @@ const prevSteps = [200, 320, 440, 560];
 // QA: preview object URLs are tracked so each new preview revokes the previous
 // pair — repeated eye-icon clicks no longer leak two blobs per click.
 let prevUrls = [];
+
+// True desktop = two-column layout (981px+). A phone in landscape is ~850px
+// wide, which is NOT desktop even though it passes a naive innerWidth > 760
+// check — that check auto-opened the preview on landscape phones even though
+// the CSS hides the card on every small screen. Match the CSS breakpoint
+// exactly so JS and CSS agree on what "desktop" means.
+const isDesktopLayout = () => window.matchMedia('(min-width: 981px)').matches;
 
 function openPreview(id) {
   const e = state.files.find(x => x.id === id); if (!e || !e.blob) return;
@@ -525,10 +539,6 @@ $('btnPrevLg').addEventListener('click', () => {
 
 // ── UI State ──
 
-function convertLabel() {
-  return '<span class="mi">bolt</span> ' + (state.files.length === 1 ? 'Convert It' : 'Convert All');
-}
-
 function downloadLabel(doneCount) {
   const txt = doneCount === 1 ? 'Download image' : 'Download ZIP';
   return '<span class="mi" style="font-size:16px">download</span> ' + txt;
@@ -536,10 +546,6 @@ function downloadLabel(doneCount) {
 
 function updateUI() {
   const any = state.files.length > 0;
-  const allDone = any && state.files.every(e => e.status === 'done');
-  const btn = $('btnConvert');
-  btn.disabled = !any || allDone;
-  btn.innerHTML = convertLabel();
   $('btnClear').disabled = !any;
   updateStats();
 }
@@ -559,9 +565,13 @@ function updateStats() {
     const saved = orig - out; const pct = Math.round(saved / orig * 100);
     $('stSaved').textContent = fmtB(saved) + ' (' + pct + '%)';
   } else { $('stSaved').textContent = '—'; }
-  const dl = $('btnDlAll');
-  dl.disabled = !allDone || !done;
-  dl.innerHTML = downloadLabel(dl.disabled ? 0 : doneCount);
+  // Both download buttons (queue on desktop, pinned bar on mobile) stay in sync.
+  ['btnDlAll', 'btnDlQueue'].forEach(id => {
+    const dl = $(id);
+    if (!dl) return;
+    dl.disabled = !allDone || !done;
+    dl.innerHTML = downloadLabel(dl.disabled ? 0 : doneCount);
+  });
   $('btnCopyLast').disabled = !state.lastBlob;
 }
 
@@ -596,10 +606,7 @@ async function compressEntry(entry) {
         state.lastBlob = blob;
         const oname = baseName(entry.outName || entry.file.name) + '.' + extOf(f);
         entry.resolvedName = oname;
-        const diff = entry.file.size - blob.size;
-        const pct = Math.abs(Math.round(diff / entry.file.size * 100));
-        const sign = diff >= 0 ? '−' : '+';
-        log(baseName(entry.file.name) + ' · ' + fmtB(entry.file.size) + ' → ' + fmtB(blob.size) + ' (' + sign + pct + '%)' + (entry.wasResized ? ' · resized ' + entry.wasResized : ''), 'ok');
+        log(baseName(entry.file.name) + ' · ' + fmtB(entry.file.size) + ' → ' + fmtB(blob.size) + (entry.wasResized ? ' · resized ' + entry.wasResized : ''));
         resolve();
       }, mimeOf(f), q);
     };
@@ -608,19 +615,27 @@ async function compressEntry(entry) {
   });
 }
 
-// ── Action Buttons ──
+// ── Auto-conversion engine ──
+// There is no Convert button anymore. Files convert themselves the moment
+// they land in the queue (WebP 80% by default), and any settings change
+// re-converts finished files automatically. If files are added or reset
+// while a run is already going, the tail check at the end of the run picks
+// them up — nothing is ever left sitting in "waiting".
 
 const CONVERT_CONCURRENCY = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
 let converting = false;
 
-$('btnConvert').addEventListener('click', async () => {
+function autoConvert() {
+  if (!state.files.some(e => e.status === 'pending')) return;
+  runConversion();
+}
+
+async function runConversion() {
   if (converting) return;
-  const btn = $('btnConvert');
   const todo = state.files.filter(e => e.status === 'pending' || e.status === 'error');
   if (!todo.length) { updateUI(); return; }
 
   converting = true;
-  btn.disabled = true;
   $('stStatus').style.color = 'var(--secondary)';
   const total = todo.length;
   let finished = 0;
@@ -628,7 +643,6 @@ $('btnConvert').addEventListener('click', async () => {
   let autoPreviewDone = false;
 
   function setProgress() {
-    btn.innerHTML = '<span class="mi" style="animation:spin 0.8s linear infinite">sync</span> ' + finished + '/' + total;
     $('stStatus').textContent = 'Converting ' + finished + '/' + total;
   }
   setProgress();
@@ -642,9 +656,11 @@ $('btnConvert').addEventListener('click', async () => {
       finished++;
       setProgress();
       rebuildTable(); updateStats();
-      // Auto-open the preview only on desktop — on phones the card stays
-      // hidden until the user taps the eye icon, keeping the queue in focus.
-      if (!autoPreviewDone && entry.status === 'done' && window.innerWidth > 760) {
+      // Auto-open the preview ONLY on the true desktop layout. On phones and
+      // tablets the card stays hidden until the user taps the eye icon —
+      // isDesktopLayout() matches the CSS breakpoint exactly, so a phone in
+      // landscape (~850px) no longer slips through a naive width check.
+      if (!autoPreviewDone && entry.status === 'done' && isDesktopLayout()) {
         openPreview(entry.id);
         autoPreviewDone = true;
       }
@@ -660,15 +676,13 @@ $('btnConvert').addEventListener('click', async () => {
   $('stStatus').textContent = anyErr ? 'Done — some files failed' : 'Done';
   $('stStatus').style.color = 'var(--tertiary)';
   updateUI(); updateStats();
-  if (okCount) {
-    log('Ready to download — ' + (okCount === 1 ? 'your image' : okCount + ' images') + ' converted', 'ok');
-    pulseDownloadBtn();
-    if (!state.shownAltTip && !state.files.some(e => e.altText)) {
-      state.shownAltTip = true;
-      setTimeout(() => log('Tip: tap the ✨ Alt button to auto-write alt text for any image', 'info'), 1200);
-    }
-  }
-});
+  // The download button's green ready-pulse is the only "it worked" signal
+  // a user needs — no toast, no popup.
+  if (okCount) pulseDownloadBtn();
+  // Files added (or re-queued by a settings change) while we were busy:
+  // convert them right away instead of leaving them "waiting".
+  if (state.files.some(e => e.status === 'pending')) runConversion();
+}
 
 $('btnRemSel').addEventListener('click', () => {
   if (!state.selId) return;
@@ -689,28 +703,32 @@ $('btnClear').addEventListener('click', () => {
   $('prevCard').classList.remove('mobile-show');
   const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'flex';
   $('stStatus').textContent = 'Ready'; $('stStatus').style.color = 'var(--tertiary)';
-  log('Cleared', 'info');
+  log('Cleared');
 });
 
-$('btnDlAll').addEventListener('click', async () => {
-  const btn = $('btnDlAll');
+// ── Download All (works from BOTH buttons: queue on desktop, pinned bar on mobile) ──
+
+async function downloadAll() {
   const doneFiles = state.files.filter(e => e.status === 'done' && e.blob);
   if (!doneFiles.length) return;
+  const bars = ['btnDlAll', 'btnDlQueue'].map($).filter(Boolean);
 
   if (doneFiles.length === 1) {
-    btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Saving…';
+    bars.forEach(b => { b.disabled = true; b.innerHTML = '<span class="mi">sync</span> Saving…'; });
     await dlOne(doneFiles[0].id);
-    btn.disabled = false; updateStats();
+    bars.forEach(b => { b.disabled = false; });
+    updateStats();
     return;
   }
 
-  btn.disabled = true; btn.innerHTML = '<span class="mi">sync</span> Zipping…';
-  log('Building ZIP…', 'info');
+  bars.forEach(b => { b.disabled = true; b.innerHTML = '<span class="mi">sync</span> Zipping…'; });
+  log('Building ZIP…');
   let JSZip;
   try {
     JSZip = await ensureJSZip();
   } catch (e) {
-    btn.disabled = false; updateStats();
+    bars.forEach(b => { b.disabled = false; });
+    updateStats();
     log('Could not load the ZIP library — check your connection and try again', 'err');
     return;
   }
@@ -723,9 +741,13 @@ $('btnDlAll').addEventListener('click', async () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'compressed.zip';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  log('ZIP downloaded · ' + fmtB(blob.size), 'ok');
-  btn.disabled = false; updateStats();
-});
+  log('ZIP downloaded · ' + fmtB(blob.size));
+  bars.forEach(b => { b.disabled = false; });
+  updateStats();
+}
+
+$('btnDlAll').addEventListener('click', downloadAll);
+$('btnDlQueue').addEventListener('click', downloadAll);
 
 $('btnCopyLast').addEventListener('click', async () => {
   if (!state.lastBlob) return;
@@ -738,7 +760,7 @@ $('btnCopyLast').addEventListener('click', async () => {
       b = await new Promise(r => c.toBlob(r, 'image/png'));
     }
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]);
-    log('Copied to clipboard', 'ok');
+    log('Copied to clipboard');
     const btn = $('btnCopyLast'); const orig = btn.innerHTML;
     btn.innerHTML = '<span class="mi" style="font-size:16px">check</span> Copied!'; setTimeout(() => btn.innerHTML = orig, 1800);
   } catch (e) { log('Clipboard failed — use Chrome or Edge', 'err'); }
@@ -765,6 +787,9 @@ function closeAltPanel() {
 
 altBackdrop.addEventListener('click', closeAltPanel);
 
+// The only remaining on-screen confirmation: a tiny "Copied!" bubble when the
+// user copies alt text. Clipboard writes give no feedback of their own, so
+// without this a tap on Copy would feel completely dead.
 const altToast = document.createElement('div');
 altToast.className = 'alt-toast';
 altToast.textContent = 'Copied!';
@@ -816,6 +841,7 @@ function resizeForAlt(file) {
 
 function applyAltToEntry(entry, alt) {
   entry.altText = alt;
+  entry.altSpotlight = false; // has alt now — never draw attention again
   if (!entry.outName || entry.autoNamed) {
     entry.autoNamed = true;
     const ext = extOf(entry.fmt || gFmt());
@@ -823,7 +849,7 @@ function applyAltToEntry(entry, alt) {
     if (newName && newName !== entry.outName) {
       entry.outName = newName;
       if (entry.resolvedName) entry.resolvedName = newName + '.' + ext;
-      log('Renamed to match alt text: ' + newName + '.' + ext, 'ok');
+      log('Renamed to match alt text: ' + newName + '.' + ext);
       rebuildTable();
     }
   }
@@ -835,6 +861,7 @@ async function genAlt(id) {
   if (!e) return;
   altEntryId = id;
   altBusy = true;
+  e.altSpotlight = false; // the user engaged with this row — stop the spotlight
 
   const btn = $('altBtn-' + id);
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="mi" style="font-size:14px;animation:spin 0.8s linear infinite">sync</span> Alt'; }
@@ -860,7 +887,7 @@ async function genAlt(id) {
     const data = await res.json();
     showAltResult(data);
     applyAltToEntry(e, data.alt || '');
-    log('Alt text ready — use Copy to paste it into WordPress or your site', 'ok');
+    log('Alt text ready');
   } catch (err) {
     $('altLoading').style.display = 'none';
     $('altResults').style.display = 'block';

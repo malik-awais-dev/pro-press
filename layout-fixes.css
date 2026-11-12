@@ -3,11 +3,6 @@
 
 /* ═══════════════════════════════════════════════════════════
    FONT STACK SWAP — Satoshi + JetBrains Mono via Fontshare
-   The old Google Fonts set (Inter, Space Grotesk, Space Mono) is
-   gone from index.html. These rules re-point every font variable the
-   base stylesheet may use, plus body and form controls directly,
-   so nothing falls back to a missing family. Satoshi covers both
-   body and headings; JetBrains Mono covers file sizes and stats.
    ═══════════════════════════════════════════════════════════ */
 
 :root {
@@ -32,15 +27,153 @@ textarea {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   PROGRESS BAR (QA fix) — app.js animates the converting row's
+   bar inline with `animation:ppBarSlide 1.1s ...`. The keyframe
+   used to be injected from JS together with the toast styles,
+   and was lost when toasts were removed — QA caught converting
+   rows with a frozen bar. It lives here with the other
+   animations now.
+   ═══════════════════════════════════════════════════════════ */
+
+@keyframes ppBarSlide {
+  0%   { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+
+/* ═══════════════════════════════════════════════════════════
    ICON FONT GATE — prevent ligature text flash on load
    ═══════════════════════════════════════════════════════════ */
 
 html:not(.fonts-ready) .mi { visibility: hidden; }
 
 /* ═══════════════════════════════════════════════════════════
-   INFO BAR — no longer glued to the viewport. It now scrolls with
-   the page like normal content. The log drawer and toast used to
-   hover above the old fixed bar, so they move down too.
+   DOWNLOAD — one action, two placements, one rule each.
+   Desktop: the Download button sits at the bottom of the Queue
+   card (where the files are). Mobile: the same button is hidden
+   and the pinned bottom bar takes over — a bar fixed to the
+   viewport bottom can never hide at any zoom or window size
+   (the 130% zoom bug was exactly a sticky/fold problem).
+   Both run the same handler, both show the same state.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Shared look for both download buttons.
+   Top padding (12px) keeps the button clear of the status line
+   that now lives directly above it inside the queue card. */
+.queue-dl-row { padding: 12px; }
+.queue-dl-row .btn-dl {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 20px;
+  border-radius: 10px;
+  border: 1.5px solid var(--card-border);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+.queue-dl-row .btn-dl:hover { background: var(--card); text-decoration: none; }
+.queue-dl-row .btn-dl:disabled { opacity: 0.35; }
+
+/* The pinned bar — mobile only (hidden on desktop) */
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 95;
+  display: flex;
+  gap: 10px;
+  padding: 10px 16px 12px;
+  /* safe area for iPhone home indicator */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--card);
+  border-top: 1px solid var(--card-border);
+  box-shadow: 0 -4px 16px rgba(58,53,80,0.1);
+}
+
+.action-bar .btn-dl {
+  flex: 1;
+  margin: 0;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1.5px solid var(--card-border);
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+.action-bar .btn-dl:hover { background: var(--card); text-decoration: none; }
+
+/* Desktop (≥981px): queue button visible, pinned bar hidden */
+@media (min-width: 981px) {
+  .action-bar { display: none; }
+}
+
+/* Mobile/tablet (≤980px): pinned bar visible, queue button hidden */
+@media (max-width: 980px) {
+  .queue-dl-row { display: none; }
+  body { padding-bottom: 84px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STATS GRID — compact results strip
+   Tightly packed cells, small mono values, thin dividers.
+   Reads as one tidy summary bar instead of four fat boxes.
+   ═══════════════════════════════════════════════════════════ */
+
+.stats-grid { gap: 0; }
+
+.stat-item { padding: 10px 12px 8px; min-width: 0; }
+
+.stat-lbl { font-size: 12px; margin-bottom: 1px; }
+
+.stat-val {
+  font-size: 13px;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STATUS LINE — lives INSIDE the Queue card (below the file
+   list, above the download button) so desktop AND mobile users
+   always see Ready / Converting x/y / Done next to their files.
+   ═══════════════════════════════════════════════════════════ */
+
+.stats-status { padding: 10px 14px 0; }
+
+/* Mobile: extra bottom padding so the status line keeps clear
+   space above the download area / card edge on phones. */
+@media (max-width: 980px) {
+  .stats-status { padding-bottom: 14px; }
+}
+
+/* NOTE: all toast notifications were removed by owner decision
+   (app.js log() is console-only now). The queue rows, the
+   status line, and the download button's green pulse tell the
+   whole story on screen. */
+
+/* ═══════════════════════════════════════════════════════════
+   PREVIEW CARD — hidden by default on EVERY small screen, shown
+   only when the user taps the eye (Preview) icon, which adds
+   .mobile-show via JS. Single-column starts at ≤980px, so the
+   hide rule must cover that whole range — at ≤760px only, the
+   card was visible on tablets/landscape where it has no place.
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 980px) {
+  #prevCard { display: none; }
+  #prevCard.mobile-show { display: block; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INFO BAR — scrolls with the page (was fixed to viewport bottom)
    ═══════════════════════════════════════════════════════════ */
 
 .info-bar {
@@ -50,19 +183,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 .log-drawer { bottom: 0; }
-.alt-toast { bottom: 24px; }
-
-/* ═══════════════════════════════════════════════════════════
-   DESKTOP (≥981px) — pin the settings card. The stats (results) and
-   the Convert / Download buttons stay visible while a long queue
-   scrolls in the left column. The column must stretch to the full
-   grid row height, otherwise sticky has no room to move in.
-   ═══════════════════════════════════════════════════════════ */
-
-@media (min-width: 981px) {
-  .col-right { align-self: stretch; }
-  .settings-card { position: sticky; top: 64px; }
-}
+.alt-toast { bottom: 100px; }
 
 /* ═══════════════════════════════════════════════════════════
    SETTINGS CARD — spacing between setting blocks
@@ -72,11 +193,9 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 .chip-group { margin-bottom: 10px; }
 
 /* ═══════════════════════════════════════════════════════════
-   LEGIBILITY — Lighthouse SEO font-size audit
-   Text under 12px triggers "Page content is not legible".
+   LEGIBILITY — 12px minimum fonts (Lighthouse SEO audit)
    ═══════════════════════════════════════════════════════════ */
 
-.stat-lbl { font-size: 12px; }
 .file-pct { font-size: 12px; }
 .info-item { font-size: 12px; }
 .alt-label { font-size: 12px; }
@@ -315,7 +434,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 .ad-slot .adsbygoogle { display: block; }
 
 /* ═══════════════════════════════════════════════════════════
-   ALT BUTTON — discoverable labelled pill
+   ALT BUTTON — discoverable labelled pill (standalone action)
    ═══════════════════════════════════════════════════════════ */
 
 .alt-pill {
@@ -349,18 +468,118 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   color: var(--success, #16a34a);
 }
 
-@keyframes ppAltGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 82, 114, 0); }
-  50%      { box-shadow: 0 0 0 6px rgba(88, 82, 114, 0.30); }
-}
-
-.alt-pill.alt-attn { animation: ppAltGlow 1.5s ease-in-out 3; }
-
 /* ═══════════════════════════════════════════════════════════
-   QUEUE — scrollable list
+   ALT SPOTLIGHT — fresh images make their Alt buttons glow for
+   ~8s. The rotating ring carries Google's four brand colors
+   (blue #4285F4, red #EA4335, yellow #FBBC05, green #34A853)
+   so it reads as playful AI magic, and a blurred copy of the
+   same gradient (the ::after halo) breathes softly around the
+   pill as the light effect. The ring spins slowly (3s) and the
+   ✨ icon pulses. It stops the moment the user taps Alt or once
+   alt text exists. Without @property support the ring shows as
+   a static multi-color gradient — still tasteful.
    ═══════════════════════════════════════════════════════════ */
 
-.file-list { max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
+@property --pp-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes ppAltSpin {
+  to { --pp-angle: 360deg; }
+}
+
+@keyframes ppAltIconPulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.12); }
+}
+
+/* The halo breathes independently of the spin, so the light
+   feels alive even between ring rotations. */
+@keyframes ppAltHalo {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.7; }
+}
+
+.alt-pill.alt-spotlight {
+  position: relative;
+  border-color: transparent; /* the rotating ring takes over */
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--text-primary, #2d2940);
+  z-index: 0; /* keep the halo behind the pill body */
+  box-shadow: 0 0 10px rgba(66, 133, 244, 0.18);
+}
+
+/* The ring: masked conic gradient in Google's four colors. */
+.alt-pill.alt-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 17px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--pp-angle),
+    #4285F4,
+    #EA4335 25%,
+    #FBBC05 50%,
+    #34A853 75%,
+    #4285F4
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask-composite: exclude;
+  animation: ppAltSpin 3s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* The light: a blurred, slightly larger copy of the same
+   colorful gradient behind the pill — the colored glow that
+   "emits" from the ring as it turns. */
+.alt-pill.alt-spotlight::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 20px;
+  background: conic-gradient(
+    from var(--pp-angle),
+    #4285F4,
+    #EA4335 25%,
+    #FBBC05 50%,
+    #34A853 75%,
+    #4285F4
+  );
+  filter: blur(7px);
+  opacity: 0.35;
+  animation: ppAltSpin 3s linear infinite, ppAltHalo 2.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.alt-pill.alt-spotlight .mi {
+  display: inline-block; /* so the scale pulse applies */
+  color: #4285F4; /* starts on Google blue; the ring paints the rest */
+  animation: ppAltIconPulse 1.6s ease-in-out infinite;
+}
+
+/* Phone pills are 32px tall (16px radius) → ring + halo follow */
+@media (max-width: 760px) {
+  .alt-pill.alt-spotlight::before { border-radius: 18px; }
+  .alt-pill.alt-spotlight::after  { border-radius: 21px; inset: -6px; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QUEUE — scrollable list.
+   NOTE: no `overscroll-behavior` here anymore. The old `contain`
+   trapped finger swipes: once the list hit its top or bottom,
+   the scroll chain stopped dead and the user could NOT scroll
+   the page behind it. Removing it lets swipes hand off to the
+   page naturally — scroll anywhere, any time.
+   ═══════════════════════════════════════════════════════════ */
+
+.file-list { max-height: 420px; overflow-y: auto; }
 
 .file-list::-webkit-scrollbar { width: 8px; }
 .file-list::-webkit-scrollbar-thumb { background: rgba(88, 82, 114, 0.30); border-radius: 4px; }
@@ -398,7 +617,8 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   DOWNLOAD BUTTON ready-pulse
+   DOWNLOAD BUTTON ready-pulse — the one "it worked" signal
+   the user gets. Deliberately kept; owner's favourite.
    ═══════════════════════════════════════════════════════════ */
 
 @keyframes ppDlReady {
@@ -411,15 +631,9 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
 /* ═══════════════════════════════════════════════════════════
    SINGLE COLUMN (≤980px) — phones, landscape, small tablets
-   ═══════════════════════════════════════════════════════════
-
-   BUG FIX: the base stylesheet's mobile treatment (flex-start,
-   fixed action bar, hidden info bar) only applies at ≤820px, but
-   single-column starts at 981px. Between 821 and 980 — phones in
-   landscape, narrow tablets — the centered flex container clipped
-   the page top/bottom and Convert/Download sat below an
-   unreachable fold. Apply the safe treatment across the whole
-   single-column range so the buttons are ALWAYS visible. */
+   Top-aligned column; the pinned download bar handles the
+   always-visible guarantee across the whole range.
+   ═══════════════════════════════════════════════════════════ */
 
 @media (max-width: 980px) {
   .app-wrap {
@@ -443,29 +657,8 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 
   .upload-zone { padding: 26px 18px; }
 
-  /* Hide the (now static) info bar on single-column screens, same as base */
+  /* Hide the info bar on single-column screens, same as base */
   .info-bar { display: none; }
-
-  /* Room for the fixed action bar at the bottom */
-  body { padding-bottom: 76px; }
-
-  /* Convert / Download pinned to the bottom of the viewport */
-  .action-bar {
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
-    flex-direction: row; gap: 10px;
-    padding: 10px 16px 12px;
-    background: var(--card);
-    border-top: 1px solid var(--card-border);
-    box-shadow: 0 -4px 16px rgba(58,53,80,0.1);
-  }
-  .action-bar .btn-primary,
-  .action-bar .btn-dl { flex: 1; margin: 0; width: auto; }
-  .action-bar .btn-dl {
-    border: 1.5px solid var(--card-border);
-    border-radius: 10px; padding: 12px 20px; font-size: 14px;
-    background: var(--bg); color: var(--text-primary);
-    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -484,20 +677,13 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   .upload-icon-box .mi { font-size: 26px; }
   .upload-title { font-size: 14px; }
 
-  /* ── Preview card hidden until the user taps the eye icon ── */
-  #prevCard { display: none; }
-  #prevCard.mobile-show { display: block; }
-
   /* ── Settings card ── */
-  .stats-status { padding-bottom: 12px; }
   .settings-card { padding-bottom: 4px; }
 
-  /* Stats grid: compact cells so long values never break the layout.
-     Fonts stay at 12px: Lighthouse penalizes sub-12px text. */
+  /* Stats grid on phones: 2×2 so values never break the layout.
+     Compact cells; fonts stay ≥12px (Lighthouse legibility). */
   .stats-grid { grid-template-columns: 1fr 1fr; }
-  .stat-item { padding: 10px 10px 8px; min-width: 0; }
-  .stat-val { font-size: 14px; line-height: 1.25; overflow-wrap: break-word; }
-  .stat-lbl { font-size: 12px; margin-bottom: 2px; }
+  .stat-item { padding: 8px 10px 6px; }
 
   /* ── File rows: two-line layout ── */
   .file-row {
@@ -551,7 +737,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 @media (max-width: 420px) {
   .upload-zone { padding: 20px 12px; }
   .file-name-text { font-size: 12.5px; }
-  .stat-val { font-size: 15px; }
+  .stat-val { font-size: 13.5px; }
   .settings-heading { font-size: 15px; }
 }
 
