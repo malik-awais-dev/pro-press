@@ -1,8 +1,48 @@
 /* layout-fixes.css — additive polish layered on top of styles.css.
    Kept separate so base styles stay untouched. */
 
-/* ── Alt button: a discoverable labelled pill ──
-   Was a cryptic square "Alt" — now an icon + label pill with an obvious AI feel. */
+/* ═══════════════════════════════════════════════════════════
+   UPLOAD ZONE — full redesign
+   Was: small horizontal box (icon left, text right).
+   Now: centered, confident drop target on every screen size.
+   ═══════════════════════════════════════════════════════════ */
+
+.upload-zone {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 32px 20px;
+  border-width: 2px;
+  background: linear-gradient(180deg, rgba(88,82,114,0.03), rgba(88,82,114,0.07));
+}
+
+.upload-icon-box {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #3A3550, #585272);
+  box-shadow: 0 10px 24px rgba(58, 53, 80, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.upload-icon-box .mi { font-size: 30px; }
+
+.upload-zone:hover .upload-icon-box,
+.upload-zone.over .upload-icon-box {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 14px 30px rgba(58, 53, 80, 0.34);
+}
+
+.upload-title { font-size: 15px; }
+.upload-title strong { font-weight: 700; }
+.upload-formats { font-size: 12px; letter-spacing: 0.01em; }
+
+/* ═══════════════════════════════════════════════════════════
+   ALT BUTTON — discoverable labelled pill
+   ═══════════════════════════════════════════════════════════ */
+
 .alt-pill {
   display: inline-flex;
   align-items: center;
@@ -10,77 +50,56 @@
   height: 30px;
   padding: 0 10px;
   border-radius: 15px;
-  border: 1px solid rgba(139, 127, 212, .5);
-  background: rgba(139, 127, 212, .14);
-  color: var(--secondary, #8B7FD4);
+  border: 1px solid rgba(88, 82, 114, 0.45);
+  background: rgba(88, 82, 114, 0.10);
+  color: var(--text-secondary, #585272);
   font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .alt-pill:hover {
-  background: rgba(139, 127, 212, .28);
-  color: #EDEAF6;
+  background: rgba(88, 82, 114, 0.20);
+  color: var(--text-primary, #2d2940);
   transform: translateY(-1px);
 }
 
-.alt-pill:disabled { opacity: .55; cursor: wait; }
+.alt-pill:disabled { opacity: 0.55; cursor: wait; }
 
 .alt-pill.alt-done {
-  border-color: rgba(90, 215, 142, .55);
-  background: rgba(90, 215, 142, .12);
-  color: #5AD78E;
+  border-color: rgba(22, 163, 74, 0.45);
+  background: var(--success-light, #f0fdf4);
+  color: var(--success, #16a34a);
 }
 
-/* First-time attention pulse on the first row's Alt pill */
 @keyframes ppAltGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 127, 212, 0); }
-  50%      { box-shadow: 0 0 0 6px rgba(139, 127, 212, .35); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 82, 114, 0); }
+  50%      { box-shadow: 0 0 0 6px rgba(88, 82, 114, 0.30); }
 }
 
 .alt-pill.alt-attn { animation: ppAltGlow 1.5s ease-in-out 3; }
 
-/* ── Upload zone ──
-   Desktop: bigger and more prominent. Mobile: icon-only, no text clutter. */
+/* ═══════════════════════════════════════════════════════════
+   QUEUE — scrollable list
+   ═══════════════════════════════════════════════════════════ */
 
-@media (min-width: 981px) {
-  #dz { min-height: 150px; }
-  #dz .upload-icon-box .mi { font-size: 44px; }
-  #dz .upload-title { font-size: 18px; }
-  #dz .upload-formats { font-size: 13px; }
-}
-
-#dz .upload-text,
-#dz .upload-formats { transition: opacity .2s ease; }
-
-@media (max-width: 760px) {
-  #dz { min-height: 120px; padding: 18px 14px; }
-  #dz .upload-text { display: none; }
-  #dz .upload-icon-box .mi { font-size: 34px; }
-}
-
-/* ── Mobile: hide the preview card by default ──
-   It only appears when the user actually taps the eye icon on a converted image. */
-@media (max-width: 760px) {
-  #prevCard { display: none; }
-  #prevCard.mobile-show { display: block; }
-}
-
-/* ── Queue ── */
 .file-list { max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
 
 .file-list::-webkit-scrollbar { width: 8px; }
-.file-list::-webkit-scrollbar-thumb { background: rgba(139, 127, 212, .35); border-radius: 4px; }
+.file-list::-webkit-scrollbar-thumb { background: rgba(88, 82, 114, 0.30); border-radius: 4px; }
 .file-list::-webkit-scrollbar-track { background: transparent; }
 
-/* ── Alt panel as floating modal ── */
+/* ═══════════════════════════════════════════════════════════
+   ALT PANEL — floating modal
+   ═══════════════════════════════════════════════════════════ */
+
 #altBackdrop {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(10, 8, 18, 0.62);
+  background: rgba(45, 41, 64, 0.55);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   z-index: 900;
@@ -96,57 +115,134 @@
   overflow-y: auto;
   margin: 0 !important;
   z-index: 901;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, .5) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35) !important;
 }
 
 @media (max-width: 480px) {
   #altCard { top: 46% !important; width: 94vw !important; }
 }
 
-#altCard .alt-disclosure { margin-top: 10px; }
+/* ═══════════════════════════════════════════════════════════
+   DOWNLOAD BUTTON ready-pulse
+   ═══════════════════════════════════════════════════════════ */
 
-/* ── Download button ready-pulse ── */
 @keyframes ppDlReady {
-  0%   { box-shadow: 0 0 0 0 rgba(90, 215, 142, .55); }
-  70%  { box-shadow: 0 0 0 14px rgba(90, 215, 142, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(90, 215, 142, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); }
+  70%  { box-shadow: 0 0 0 14px rgba(22, 163, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
 }
 
 .btn-dl.dl-ready { animation: ppDlReady 1.6s ease-out 3; }
 
-/* ── Tablets & phones: stack columns ── */
+/* ═══════════════════════════════════════════════════════════
+   TABLETS — single column, keep grid gap (fixes settings top gap)
+   ═══════════════════════════════════════════════════════════ */
+
 @media (max-width: 980px) {
-  .app-inner { display: block !important; }
+  /* Use single-column GRID (not display:block) so the existing 14px gap
+     is preserved between the stacked left and right columns. */
+  .app-inner {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    max-width: 640px;
+  }
+
   .col-left,
   .col-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+
+  /* Explicit breathing room above the Settings card */
+  .settings-card { margin-top: 6px; }
+
+  /* A taller upload zone reads as the primary CTA on tablets */
+  .upload-zone { padding: 26px 18px; }
 }
 
-@media (max-width: 760px) {
-  .topbar-inner, .app-inner { padding-left: 14px; padding-right: 14px; }
+/* ═══════════════════════════════════════════════════════════
+   PHONES (≤760px)
+   ═══════════════════════════════════════════════════════════ */
 
+@media (max-width: 760px) {
+  .topbar-inner, .app-wrap { padding-left: 14px; padding-right: 14px; }
+
+  /* ── Upload zone: same centered design, sized for phones ── */
+  .upload-zone { padding: 24px 14px; gap: 10px; border-width: 2px; }
+  .upload-icon-box { width: 54px; height: 54px; border-radius: 15px; }
+  .upload-icon-box .mi { font-size: 26px; }
+  .upload-title { font-size: 14px; }
+  .upload-formats { font-size: 11px; }
+
+  /* ── Preview card hidden until the user taps the eye icon ──
+     (app.js only auto-opens it on desktop) */
+  #prevCard { display: none; }
+  #prevCard.mobile-show { display: block; }
+
+  /* ── File rows: two-line layout instead of one cramped line ──
+     Line 1: thumb · name/meta · % pill
+     Line 2: action buttons, indented to align under the text */
+  .file-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 12px;
+  }
+
+  .file-thumb { width: 46px; height: 46px; border-radius: 8px; }
+
+  .file-info { flex: 1 1 0; min-width: 0; }
+  .file-name-text { font-size: 13px; }
+  .file-meta .mono { font-size: 10.5px; }
+
+  .file-pct { font-size: 10.5px; padding: 3px 8px; }
+
+  .file-actions {
+    order: 4;
+    flex-basis: 100%;
+    margin-top: 8px;
+    gap: 6px;
+    justify-content: flex-start;
+    padding-left: 54px; /* 46px thumb + 8px gap → aligns under the filename */
+  }
+
+  .btn-icon { width: 34px; height: 34px; }
+  .btn-icon .mi { font-size: 17px; }
+  .alt-pill { height: 32px; }
+
+  /* done/error/converting accent bars stay visible */
+  .file-row.done-row,
+  .file-row.error-row,
+  .file-row.converting-row { border-left-width: 3px; }
+
+  /* ── Queue header wraps cleanly ── */
+  .queue-head { flex-wrap: wrap; gap: 6px 10px; padding: 10px 12px; }
+  .queue-actions { width: 100%; justify-content: flex-start; gap: 14px; }
+
+  .file-list { max-height: 340px; }
+
+  /* ── Footer info bar ── */
   .info-bar { padding: 10px 0; }
   .info-bar-inner { flex-wrap: wrap; justify-content: center; gap: 6px 10px; }
   .info-sep { display: none; }
   .info-item { font-size: 11px; }
 
-  .queue-head { flex-wrap: wrap; gap: 8px; }
-  .queue-actions { width: 100%; justify-content: flex-start; gap: 12px; }
-
-  .btn-icon { min-width: 34px; min-height: 34px; }
   .prev-ctrl-btn { padding: 6px 10px; }
-
-  .file-list { max-height: 340px; }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   SMALL PHONES (≤420px)
+   ═══════════════════════════════════════════════════════════ */
+
 @media (max-width: 420px) {
-  .upload-title { font-size: 14px; }
-  .upload-formats { font-size: 11px; }
-  .file-name-text { font-size: 13px; }
-  .file-meta { font-size: 11px; }
-  .stat-val { font-size: 13px; }
+  .upload-zone { padding: 20px 12px; }
+  .file-name-text { font-size: 12.5px; }
+  .stat-val { font-size: 15px; }
+  .settings-heading { font-size: 15px; }
 }
 
 /* Respect reduced-motion users */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
