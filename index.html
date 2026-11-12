@@ -120,6 +120,13 @@
         <div class="file-list" id="fileBody" role="list" aria-label="Image file list">
           <div class="empty-hint">No images yet. Drop files or browse above</div>
         </div>
+        <!-- Download under Queue (desktop position; on mobile this hides and
+             the pinned bottom download bar takes over — same handler) -->
+        <div class="queue-dl-row">
+          <button class="btn btn-dl btn-block" id="btnDlQueue" disabled aria-label="Download all converted images">
+            <span class="mi" style="font-size:16px">download</span> Download ZIP
+          </button>
+        </div>
       </div>
 
       <!-- Preview / Slider -->
@@ -188,7 +195,7 @@
             <button class="chip" data-val="800" onclick="setChip('gMaxw','mwChips',this)">800px</button>
             <button class="chip" data-val="600" onclick="setChip('gMaxw','mwChips',this)">600px</button>
           </div>
-          <div class="q-hint">Anything wider than this gets scaled down. Smaller pictures, faster site. Applies to images you haven't converted yet.</div>
+          <div class="q-hint">Anything wider than this gets scaled down. Smaller pictures, faster site. Change it any time — files already converted re-convert automatically.</div>
         </div>
 
         <!-- Format -->
@@ -232,12 +239,10 @@
           <span id="stStatus">Ready</span>
         </div>
 
-        <!-- Actions -->
+        <!-- Pinned download bar (mobile position; on desktop this hides and the
+             queue download button takes over — same handler) -->
         <div class="action-bar">
-          <button class="btn btn-primary btn-block" id="btnConvert" disabled aria-label="Convert all images">
-            <span class="mi" style="font-size:18px">bolt</span> Convert all
-          </button>
-          <button class="btn btn-dl btn-block" id="btnDlAll" disabled aria-label="Download ZIP">
+          <button class="btn btn-dl btn-block" id="btnDlAll" disabled aria-label="Download all converted images">
             <span class="mi" style="font-size:16px">download</span> Download ZIP
           </button>
         </div>
@@ -302,14 +307,14 @@
       <div class="step">
         <span class="step-num">2</span>
         <div>
-          <strong>Pick the settings</strong>
-          <p>Choose WebP, AVIF, JPEG or PNG, move the quality slider, and resize big photos if you like. A 3300px camera shot? Pick 800px and it comes out web-ready.</p>
+          <strong>Compressed instantly</strong>
+          <p>Your images compress automatically the moment you drop them in — WebP at 80% quality by default. No button to press. Want AVIF, JPEG or PNG instead? Just pick it and everything re-converts by itself.</p>
         </div>
       </div>
       <div class="step">
         <span class="step-num">3</span>
         <div>
-          <strong>Convert and download</strong>
+          <strong>Download</strong>
           <p>Check the result with the before/after slider, then save files one at a time or grab everything at once as a ZIP.</p>
         </div>
       </div>
