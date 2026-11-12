@@ -90,7 +90,7 @@
   position: fixed !important;
   top: 50% !important;
   left: 50% !important;
-  transform: generated translate(-50%, -50%);
+  transform: translate(-50%, -50%);
   width: min(460px, 92vw) !important;
   max-height: min(80vh, 640px);
   overflow-y: auto;
