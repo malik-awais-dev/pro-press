@@ -28,19 +28,26 @@
     {"@type":"Question","name":"Are my images uploaded to a server?","acceptedAnswer":{"@type":"Answer","text":"No. Compression, resizing and format conversion all happen inside your browser, so your images never leave your device. The one exception is the AI alt text feature: it sends a single resized copy of one image to an AI service, and only when you tap the Alt button yourself."}},
     {"@type":"Question","name":"Is PRO-PRESS really free?","acceptedAnswer":{"@type":"Answer","text":"Yes, completely. No account, no watermark, no daily limit. You can compress a hundred images and download the ZIP without paying anything."}},
     {"@type":"Question","name":"What is the difference between WebP and JPEG?","acceptedAnswer":{"@type":"Answer","text":"WebP makes files roughly half the size of JPEG at similar quality, and every major browser supports it now, so it is the sensible default for websites. If you are unsure, convert one image each way and compare them with the preview slider."}},
-    {"@type":"Question","name":"We much smaller will my images be?","acceptedAnswer":{"@type":"Answer","text":"Most photos shrink by 70 to 90 percent at the default 80% quality setting. If you also resize a 3300px camera photo down to 800px, a 4 MB original can end up around 100 KB."}}
+    {"@type":"Question","name":"How much smaller will my images be?","acceptedAnswer":{"@type":"Answer","text":"Most photos shrink by 70 to 90 percent at the default 80% quality setting. If you also resize a 3300px camera photo down to 800px, a 4 MB original can end up around 100 KB."}},
+    {"@type":"Question","name":"What is alt text and why does it matter?","acceptedAnswer":{"@type":"Answer","text":"Alt text is the short description a screen reader reads out loud and search engines read to understand your image. Good alt text helps visually impaired visitors and helps your pictures show up in Google Images. Tap Alt on any file and the tool writes it for you, embeds it in the image, and can rename the file to match."}},
+    {"@type":"Question","name":"Does it work on mobile?","acceptedAnswer":{"@type":"Answer","text":"Yes, in any modern mobile browser, iPhone and Android included. Since your phone does the work itself, you can compress big batches even on a slow connection."}}
   ]}
   </script>
-  <!-- Fonts: Satoshi + JetBrains Mono from Fontshare, icon font from Google.
-       Satoshi 400 preloaded (body weight). Only 4 preconnects: Lighthouse
-       warns above 4. Ad CDN (async script) and cdnjs (JSZip lazy-loaded
-       after conversion) don't need early connections. -->
+  <!-- Fonts: Satoshi + JetBrains Mono from Fontshare (lighter than the old
+       Inter/Space Grotesk/Space Mono set), icon font still from Google.
+       Satoshi 400 is preloaded because it renders nearly all body text.
+       Only 4 preconnects: Lighthouse warns when there are more. The ad CDN
+       (async script) and cdnjs (JSZip lazy-loaded after conversion) don't
+       need early connections. -->
   <link rel="preconnect" href="https://api.fontshare.com"/>
   <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link rel="preload" href="https://cdn.fontshare.com/wf/TTX2Z3BF3P6Y5BQT3IV2VNOK6FL22KUT/7QYRJOI3JIMYHGY6CH7SOIFRQLZOLNJ6/KFIAZD4RUMEZIYV6FQ3T3GP5PDBDB6JY.woff2" as="font" type="font/woff2" crossorigin/>
-  <data>test</data>
+  <link href="https://api.fontshare.com/v2/css?display=swap&amp;f[]=satoshi@400,500,600,700&amp;f[]=jet-brains-mono@400,700" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"/>
+  <link href="styles.css" rel="stylesheet"/>
+  <link href="layout-fixes.css" rel="stylesheet"/>
 </head>
 <body>
 <script>
@@ -111,7 +118,7 @@
           </div>
         </div>
         <div class="file-list" id="fileBody" role="list" aria-label="Image file list">
-          < <div class="empty-hint">No images yet. Drop files or browse above</div>
+          <div class="empty-hint">No images yet. Drop files or browse above</div>
         </div>
       </div>
 
@@ -135,7 +142,7 @@
           <!-- Floating controls bar -->
           <div class="prev-controls">
             <button class="prev-ctrl-btn" id="btnPrevSm">
-              <span class="mi" style="font-font-size:13px">expand_more</span> Smaller
+              <span class="mi" style="font-size:13px">expand_more</span> Smaller
             </button>
             <button class="prev-ctrl-btn" id="btnPrevLg">
               <span class="mi" style="font-size:13px">expand_less</span> Larger
@@ -158,16 +165,26 @@
         <div class="setting-section">
           <div class="setting-row-label">
             <span class="setting-label">Quality</span>
-            <span class="slider-val" id="gQout"> stylesheet80%</span>
+            <span class="slider-val" id="gQout">80%</span>
           </div>
           <input type="range" id="gQ" min="10" max="100" step="1" value="80" aria-label="Compression quality">
           <div class="q-hint" id="qHint">Good — recommended</div>
-        </d<div class="setting-section">
+        </div>
+
+        <!-- Resize (max width) -->
+        <select id="gMaxw" class="hidden-select" aria-label="Maximum output width">
+          <option value="0">Original size</option>
+          <option value="1920">1920px</option>
+          <option value="1280">1280px</option>
+          <option value="800">800px</option>
+          <option value="600">600px</option>
+        </select>
+        <div class="setting-section">
           <span class="setting-label">Resize (max width)</span>
           <div class="chip-group" id="mwChips">
             <button class="chip active" data-val="0" onclick="setChip('gMaxw','mwChips',this)">Original</button>
             <button class="chip" data-val="1920" onclick="setChip('gMaxw','mwChips',this)">1920px</button>
-            <n class="chip" data-val="1280" onclick="setChip('gMaxw','mwChips',this)">1280px</button>
+            <button class="chip" data-val="1280" onclick="setChip('gMaxw','mwChips',this)">1280px</button>
             <button class="chip" data-val="800" onclick="setChip('gMaxw','mwChips',this)">800px</button>
             <button class="chip" data-val="600" onclick="setChip('gMaxw','mwChips',this)">600px</button>
           </div>
@@ -184,7 +201,7 @@
         <div class="setting-section setting-section-last">
           <span class="setting-label">Output format</span>
           <div class="chip-group" id="fmtChips">
-            <button class="chichip active" data-val="webp" onclick="setChip('gFmt','fmtChips',this)">WebP</button>
+            <button class="chip active" data-val="webp" onclick="setChip('gFmt','fmtChips',this)">WebP</button>
             <button class="chip" data-val="avif" onclick="setChip('gFmt','fmtChips',this)">AVIF</button>
             <button class="chip" data-val="jpeg" onclick="setChip('gFmt','fmtChips',this)">JPEG</button>
             <button class="chip" data-val="png" onclick="setChip('gFmt','fmtChips',this)">PNG</button>
@@ -205,7 +222,7 @@
             <span class="stat-lbl">Output</span>
             <span class="stat-val" id="stComp">—</span>
           </div>
-          < <div class="stat-item">
+          <div class="stat-item">
             <span class="stat-lbl">Saved</span>
             <span class="stat-val green" id="stSaved">—</span>
           </div>
@@ -283,7 +300,7 @@
         </div>
       </div>
       <div class="step">
-        < <span class="step-num">2</span>
+        <span class="step-num">2</span>
         <div>
           <strong>Pick the settings</strong>
           <p>Choose WebP, AVIF, JPEG or PNG, move the quality slider, and resize big photos if you like. A 3300px camera shot? Pick 800px and it comes out web-ready.</p>
@@ -325,7 +342,7 @@
       </details>
       <details>
         <summary>What is alt text and why does it matter?</summary>
-        <p>Alt text is the short description a screen reader reads out loud, and the one search engines read to understand your picture. Good alt text helps visually impaired visitors and helps your pictures show up in Google Images. Tap Alt on any file and the tool writes it for you, embeds it in the image, and can rename the file to match.</p>
+        <p>Alt text is the short description a screen reader reads out loud, and the one search engines read to understand your picture. Good alt text helps visually impaired visitors and helps your images show up in Google Images. Tap Alt on any file and the tool writes it for you, embeds it in the image, and can rename the file to match.</p>
       </details>
       <details>
         <summary>Does it work on mobile?</summary>
@@ -349,7 +366,7 @@
   </div>
 </footer>
 
-<!-- AD SLOT: above the footer, full action, full width. To activate, paste your AdSense <ins> code
+<!-- AD SLOT: above the footer, full width. To activate, paste your AdSense <ins> code
      inside this div and add the class "active" to it. -->
 <div class="ad-slot" id="adSlotFooter"></div>
 
