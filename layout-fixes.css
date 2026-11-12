@@ -140,22 +140,11 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   .stats-status { padding-bottom: 14px; }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   TOASTS ON MOBILE — the narrow right-corner stack looked
-   cramped and overlapped the sticky header on phones. On
-   ≤760px the toast container (#ppToastWrap, created in app.js)
-   spans nearly full width and drops below the 52px top bar.
-   The !important overrides the inline styles app.js sets.
-   ═══════════════════════════════════════════════════════════ */
-
-@media (max-width: 760px) {
-  #ppToastWrap {
-    top: 62px !important;
-    left: 10px !important;
-    right: 10px !important;
-    max-width: none !important;
-  }
-}
+/* NOTE: all toast notifications were removed by owner decision
+   (app.js log() is console-only now). The old mobile toast
+   repositioning block is gone with them. The queue rows, the
+   status line, and the download button's green pulse tell the
+   whole story on screen. */
 
 /* ═══════════════════════════════════════════════════════════
    PREVIEW CARD — hidden by default on EVERY small screen, shown
@@ -466,12 +455,71 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   color: var(--success, #16a34a);
 }
 
-@keyframes ppAltGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 82, 114, 0); }
-  50%      { box-shadow: 0 0 0 6px rgba(88, 82, 114, 0.30); }
+/* ═══════════════════════════════════════════════════════════
+   ALT SPOTLIGHT — when fresh images land in the queue, their
+   Alt buttons glow softly for ~8s: a thin rotating gradient
+   ring replaces the border, and the ✨ icon pulses gently.
+   The intent: a new user feels "there is something here to
+   try" — it whispers, it never shouts. It stops the moment
+   the user taps Alt (JS clears the flag) or once alt text
+   exists. Browsers without @property support show the ring
+   as a static gradient — still tasteful.
+   ═══════════════════════════════════════════════════════════ */
+
+@property --pp-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
 }
 
-.alt-pill.alt-attn { animation: ppAltGlow 1.5s ease-in-out 3; }
+@keyframes ppAltSpin {
+  to { --pp-angle: 360deg; }
+}
+
+@keyframes ppAltIconPulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.12); }
+}
+
+.alt-pill.alt-spotlight {
+  position: relative;
+  border-color: transparent; /* the rotating ring takes over */
+  background: rgba(88, 82, 114, 0.14);
+  color: var(--text-primary, #2d2940);
+}
+
+.alt-pill.alt-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 17px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--pp-angle),
+    rgba(139, 127, 212, 0.15),
+    #8B7FD4 30%,
+    #C9C1EE 50%,
+    #8B7FD4 70%,
+    rgba(139, 127, 212, 0.15)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask-composite: exclude;
+  animation: ppAltSpin 3s linear infinite;
+  pointer-events: none;
+}
+
+.alt-pill.alt-spotlight .mi {
+  display: inline-block; /* so the scale pulse applies */
+  color: var(--secondary, #8B7FD4);
+  animation: ppAltIconPulse 1.6s ease-in-out infinite;
+}
+
+/* Phone pills are 32px tall (16px radius) → ring radius follows */
+@media (max-width: 760px) {
+  .alt-pill.alt-spotlight::before { border-radius: 18px; }
+}
 
 /* ═══════════════════════════════════════════════════════════
    QUEUE — scrollable list.
@@ -520,7 +568,8 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   DOWNLOAD BUTTON ready-pulse
+   DOWNLOAD BUTTON ready-pulse — the one "it worked" signal
+   the user gets. Deliberately kept; owner's favourite.
    ═══════════════════════════════════════════════════════════ */
 
 @keyframes ppDlReady {
