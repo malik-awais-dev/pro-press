@@ -62,7 +62,8 @@ module.exports = async (req, res) => {
 
 async function callGemini(key, prompt, imageBase64, mediaType) {
   // AQ.* auth keys must be sent as a header, not as a ?key= query parameter.
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+  // gemini-2.5-flash is retired for new users; gemini-3.8-flash is the current Flash model.
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
   const apiRes = await fetch(url, {
     method: 'POST',
     headers: {
