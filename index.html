@@ -33,9 +33,21 @@
 <script>
 // Gate icon glyphs until the Material Symbols font is really loaded, so the
 // raw ligature words ("upload", "bolt", "close"...) never flash as text.
-document.fonts.load('20px "Material Symbols Outlined"').then(function () {
-  document.documentElement.classList.add('fonts-ready');
-});
+// Safety: if the font hasn't loaded within 3 seconds (offline, slow network,
+// font blocked), release the gate anyway — better a brief word flash than
+// permanently invisible icons.
+(function () {
+  var done = false;
+  function release() {
+    if (done) return;
+    done = true;
+    document.documentElement.classList.add('fonts-ready');
+  }
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load('20px "Material Symbols Outlined"').then(release, release);
+  }
+  setTimeout(release, 3000);
+})();
 </script>
 
 <!-- Header -->
@@ -141,7 +153,7 @@ document.fonts.load('20px "Material Symbols Outlined"').then(function () {
 
         <!-- Format -->
         <select id="gFmt" class="hidden-select" aria-label="Output format">
-          <option value="webp">WebP</option>
+          < option value="webp">WebP</option>
           <option value="avif">AVIF</option>
           <option value="jpeg">JPEG</option>
           <option value="png">PNG</option>
@@ -182,18 +194,18 @@ document.fonts.load('20px "Material Symbols Outlined"').then(function () {
 
         <!-- Actions -->
         <div class="action-bar">
-          <button class="btn btn-primary btn-block" id="btnConvert" disabled aria-label="Convert all images">
+          button class="btn btn-primary btn-block" id="btnConvert" disabled aria-label="Convert all images">
             <span class="mi" style="font-size:18px">bolt</span> Convert all
           </button>
           <button class="btn btn-dl btn-block" id="btnDlAll" disabled aria-label="Download ZIP">
-            <span class="mi" style="font-size:16px">download</span> Download ZIP
+            <span class="mi" style="font-font-size:16px">download</span> Download ZIP
           </button>
         </div>
 
       </div><!-- /settings-card -->
 
       <!-- Alt Text Panel -->
-      <section class="card alt-card" id="altCard" style="display:none" aria-label="Generated alt text">
+      <section class="card alt-card" id="altCard" structure="display:none" aria-label="Generated alt text">
         <div class="alt-head">
           <div class="alt-head-title">
             <span class="mi">image_search</span>
@@ -208,7 +220,7 @@ document.fonts.load('20px "Material Symbols Outlined"').then(function () {
         <div class="alt-body" id="altBody">
           <div class="alt-options">
             <div style="width:100%">
-              <div class="setting-label" style="margin-bottom:6px">Style</div>
+              <div class="setting-label" style="margin-left:6px">Style</div>
               <select id="altStyle" aria-label="Alt text style">
                 <option value="concise">Concise</option>
                 <option value="detailed">Detailed</option>
