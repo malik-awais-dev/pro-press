@@ -6,7 +6,9 @@ const mimeOf = f => ({ webp: 'image/webp', avif: 'image/avif', jpeg: 'image/jpeg
 const baseName = n => n.replace(/\.[^.]+$/, '');
 const gFmt = () => $('gFmt').value;
 const gQ = () => parseInt($('gQ').value) / 100;
-const gMaxw = () => 0;
+// Max output width: 0 = keep original dimensions, otherwise scale images
+// wider than this down (e.g. a 3300px photo → 800px web-ready image).
+const gMaxw = () => parseInt($('gMaxw').value) || 0;
 
 const qMap = [[10, 'Very low — heavy artifacts'], [20, 'Low — visible loss'], [30, 'Low'], [40, 'Fair'], [50, 'Moderate'], [60, 'Moderate'], [70, 'Good'], [80, 'Good — recommended'], [90, 'Excellent'], [95, 'Near lossless'], [100, 'Maximum quality']];
 function qLabel(v) { let r = qMap[0][1]; for (const [k, l] of qMap) if (v >= k) r = l; return r; }
@@ -161,6 +163,8 @@ $('gFmt').addEventListener('change', () => {
   applySettingsToPending();
 });
 
+$('gMaxw').addEventListener('change', applySettingsToPending);
+
 // QA: sync the hint with the slider's actual default on first load, so the page
 // never starts with a hint that disagrees with the 80% default position.
 $('qHint').textContent = qLabel(parseInt($('gQ').value));
@@ -169,11 +173,13 @@ function applySettingsToPending() {
   if (state.editing) return;
   const fmt = gFmt();
   const q = parseInt($('gQ').value);
+  const mw = gMaxw();
   let changed = false;
   state.files.forEach(e => {
     if (e.status === 'pending' || e.status === 'error') {
       if (e.fmt !== fmt) { e.fmt = fmt; changed = true; }
       if (e.quality !== q) { e.quality = q; changed = true; }
+      if ((e.maxw || 0) !== mw) { e.maxw = mw; changed = true; }
     }
   });
   if (changed) rebuildTable();
@@ -259,7 +265,7 @@ function addFiles(files) {
     if (!f.type.startsWith('image/')) { skip++; continue; }
     if (f.size > 50 * 1024 * 1024) { log('Too large, skipped: ' + f.name, 'err'); skip++; continue; }
     const id = ++state.nextId;
-    state.files.push({ id, file: f, status: 'pending', blob: null, outSize: 0, outName: null, resolvedName: null, fmt: gFmt(), quality: parseInt($('gQ').value) });
+    state.files.push({ id, file: f, status: 'pending', blob: null, outSize: 0, outName: null, resolvedName: null, fmt: gFmt(), quality: parseInt($('gQ').value), maxw: gMaxw() });
     added++;
   }
   if (added) {
@@ -314,7 +320,11 @@ function rebuildTable() {
 
     let metaLine = fmtB(e.file.size);
     if (e.status === 'converting') metaLine = 'Compressing…';
-    else if (e.status === 'done' && e.outSize) metaLine = fmtB(e.file.size) + ' → ' + outTxt + ' · ' + ext.toUpperCase();
+    else if (e.status === 'done' && e.outSize) {
+      // Show output dimensions when the image was resized (e.g. "3300→800px wide")
+      const dimTxt = (e.outW && e.wasResized) ? e.wasResized : '';
+      metaLine = fmtB(e.file.size) + ' → ' + outTxt + ' · ' + ext.toUpperCase() + (dimTxt ? ' · ' + dimTxt : '');
+    }
     else if (e.status === 'pending') metaLine = fmtB(e.file.size) + ' · waiting';
     else if (e.status === 'error') metaLine = fmtB(e.file.size) + ' · error';
 
@@ -556,8 +566,11 @@ async function compressEntry(entry) {
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let w = img.width, h = img.height;
+      const origW = w;
       const mw = entry.maxw || gMaxw();
       if (mw && w > mw) { h = Math.round(h * mw / w); w = mw; }
+      entry.wasResized = (mw && origW > mw) ? (origW + '→' + w + 'px') : null;
+      entry.outW = w;
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
@@ -571,7 +584,7 @@ async function compressEntry(entry) {
         const diff = entry.file.size - blob.size;
         const pct = Math.abs(Math.round(diff / entry.file.size * 100));
         const sign = diff >= 0 ? '−' : '+';
-        log(baseName(entry.file.name) + ' · ' + fmtB(entry.file.size) + ' → ' + fmtB(blob.size) + ' (' + sign + pct + '%)', 'ok');
+        log(baseName(entry.file.name) + ' · ' + fmtB(entry.file.size) + ' → ' + fmtB(blob.size) + ' (' + sign + pct + '%)' + (entry.wasResized ? ' · resized ' + entry.wasResized : ''), 'ok');
         resolve();
       }, mimeOf(f), q);
     };
