@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
     if (!image || !mediaType) return res.status(400).json({ error: 'Missing image data' });
 
     const key = process.env.ASHNA_API_KEY;
-    if (!key) return res.status(500).json({ error: 'ASHNA_API_KEY env var is not set on this deployment' });
+    if (!key) return res.status(500).json({ error: 'ASHNA_API_KEY is not set on THIS deployment (preview build may be stale - redeploy the preview, not production)' });
 
     const prompt = (STYLES[altStyle] || STYLES.concise) + ' Return only the alt text itself.';
 
