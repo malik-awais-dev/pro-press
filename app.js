@@ -161,6 +161,10 @@ $('gFmt').addEventListener('change', () => {
   applySettingsToPending();
 });
 
+// QA: sync the hint with the slider's actual default on first load, so the page
+// never starts with a hint that disagrees with the 80% default position.
+$('qHint').textContent = qLabel(parseInt($('gQ').value));
+
 function applySettingsToPending() {
   if (state.editing) return;
   const fmt = gFmt();
@@ -440,6 +444,9 @@ async function dlOne(id) {
 
 let prevH = 320;
 const prevSteps = [200, 320, 440, 560];
+// QA: preview object URLs are tracked so each new preview revokes the previous
+// pair — repeated eye-icon clicks no longer leak two blobs per click.
+let prevUrls = [];
 
 function openPreview(id) {
   const e = state.files.find(x => x.id === id); if (!e || !e.blob) return;
@@ -447,8 +454,10 @@ function openPreview(id) {
   $('prevCard').classList.add('mobile-show');
   const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'none';
   $('prevWrap').style.height = prevH + 'px';
-  $('prevOrig').src = URL.createObjectURL(e.file);
-  $('prevComp').src = URL.createObjectURL(e.blob);
+  prevUrls.forEach(u => URL.revokeObjectURL(u));
+  prevUrls = [URL.createObjectURL(e.file), URL.createObjectURL(e.blob)];
+  $('prevOrig').src = prevUrls[0];
+  $('prevComp').src = prevUrls[1];
   $('prevComp').className = 'prev-after';
   $('prevLblL').textContent = 'Original · ' + fmtB(e.file.size);
   $('prevLblR').textContent = (e.fmt || gFmt()).toUpperCase() + ' · ' + fmtB(e.outSize);
@@ -524,7 +533,10 @@ function updateStats() {
   } else { $('stSaved').textContent = '—'; }
   const dl = $('btnDlAll');
   dl.disabled = !allDone || !done;
-  if (!dl.disabled) dl.innerHTML = downloadLabel(doneCount);
+  // QA: keep the label in sync with the actual state — a disabled button now
+  // always shows the neutral "Download ZIP", so the label never goes stale
+  // after Clear All (previously it kept saying "Download image").
+  dl.innerHTML = downloadLabel(dl.disabled ? 0 : doneCount);
   $('btnCopyLast').disabled = !state.lastBlob;
 }
 
@@ -634,7 +646,7 @@ $('btnConvert').addEventListener('click', async () => {
 $('btnRemSel').addEventListener('click', () => {
   if (!state.selId) return;
   const e = state.files.find(x => x.id === state.selId);
-  if (e) log('Removed: ' + e.file.name);
+  if (e) { if (e.thumbUrl) URL.revokeObjectURL(e.thumbUrl); log('Removed: ' + e.file.name); }
   state.files = state.files.filter(x => x.id !== state.selId);
   state.selId = null; $('btnRemSel').disabled = true;
   rebuildTable(); updateUI();
@@ -642,9 +654,14 @@ $('btnRemSel').addEventListener('click', () => {
 
 $('btnClear').addEventListener('click', () => {
   if (converting) { log('Wait for the conversion to finish first', 'err'); return; }
+  // QA: revoke every thumbnail + preview object URL so a long session doesn't
+  // accumulate memory; dropping src attributes instead of clearing to '' avoids
+  // a spurious 404 request to the page URL in some browsers.
+  state.files.forEach(e => { if (e.thumbUrl) URL.revokeObjectURL(e.thumbUrl); });
+  prevUrls.forEach(u => URL.revokeObjectURL(u)); prevUrls = [];
   state.files = []; state.selId = null; state.lastBlob = null;
   rebuildTable(); updateUI();
-  $('prevOrig').src = ''; $('prevComp').src = '';
+  $('prevOrig').removeAttribute('src'); $('prevComp').removeAttribute('src');
   $('prevCard').classList.remove('mobile-show');
   const ph = $('prevPlaceholder'); if (ph) ph.style.display = 'flex';
   $('stStatus').textContent = 'Ready'; $('stStatus').style.color = 'var(--tertiary)';
