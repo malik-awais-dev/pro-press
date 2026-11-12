@@ -1,5 +1,5 @@
-// Alt text generator - uses the official AshnaAI API (OpenAI-compatible)
-// The ASHNA_API_KEY lives in the hosting platform env vars, never in code.
+// Alt text generator - tries Google Gemini (free tier) first, then AshnaAI.
+// API keys live in hosting platform env vars, never in code.
 const STYLES = {
   concise: 'Write a concise alt text (under 125 characters) describing the essential content of this image.',
   detailed: 'Write a detailed alt text describing this image: key objects, colors, setting, and mood.',
@@ -17,48 +17,91 @@ module.exports = async (req, res) => {
 
   try {
     const body = req.body || {};
-    const image = body.image;
-    const mediaType = body.mediaType;
+    const image = body.image;       // base64 (no data: prefix)
+    const mediaType = body.mediaType; // e.g. image/jpeg
     const altStyle = body.altStyle;
     if (!image || !mediaType) return res.status(400).json({ error: 'Missing image data' });
 
-    const key = process.env.ASHNA_API_KEY;
-    if (!key) return res.status(500).json({ error: 'ASHNA_API_KEY is not set on THIS deployment (preview build may be stale - redeploy the preview, not production)' });
-
     const prompt = (STYLES[altStyle] || STYLES.concise) + ' Return only the alt text itself.';
 
-    const apiRes = await fetch('https://api.ashna.ai/v1/api/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + key,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'glm-5.3-flash',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: 'data:' + mediaType + ';base64,' + image } }
-            ]
-          }
-        ]
-      })
-    });
-    if (!apiRes.ok) {
-      let detail = '';
-      try { detail = (await apiRes.text()).slice(0, 300); } catch (e) {}
-      return res.status(502).json({ error: 'AshnaAI API returned ' + apiRes.status + (detail ? ' - ' + detail : '') });
+    // ---- Provider 1: Google Gemini (free tier) ----
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+      try {
+        const alt = await callGemini(geminiKey, prompt, image, mediaType);
+        if (alt) return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'gemini' });
+      } catch (err) {
+        console.error('Gemini failed, falling back to AshnaAI:', err.message);
+      }
     }
 
-    const data = await apiRes.json();
-    const choice = data.choices && data.choices[0];
-    const alt = ((choice && choice.message && choice.message.content) || '').trim();
-    if (!alt) return res.status(502).json({ error: 'AshnaAI returned an empty response' });
-
-    return res.status(200).json({ alt: alt, title: alt, caption: '' });
+    // ---- Provider 2: AshnaAI (fallback) ----
+    const ashnaKey = process.env.ASHNA_API_KEY;
+    if (!ashnaKey) {
+      return res.status(500).json({ error: 'No AI provider configured. Add GEMINI_API_KEY (free) in your hosting environment variables.' });
+    }
+    const alt = await callAshna(ashnaKey, prompt, image, mediaType);
+    return res.status(200).json({ alt: alt, title: alt, caption: '', provider: 'ashna' });
   } catch (err) {
-    return res.status(500).json({ error: 'Function error: ' + err.message });
+    return res.status(err.status || 500).json({ error: err.message || 'Alt text generation failed' });
   }
 };
+
+async function callGemini(key, prompt, imageBase64, mediaType) {
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(key);
+  const apiRes = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: mediaType, data: imageBase64 } }
+        ]
+      }]
+    })
+  });
+  if (!apiRes.ok) {
+    const detail = await apiRes.text().catch(() => '');
+    const err = new Error('Gemini API returned ' + apiRes.status + ' - ' + String(detail).slice(0, 300));
+    err.status = apiRes.status === 429 ? 429 : 502;
+    throw err;
+  }
+  const data = await apiRes.json();
+  const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+  const alt = parts.map(p => p.text || '').join(' ').trim();
+  if (!alt) throw new Error('Gemini returned an empty response');
+  return alt;
+}
+
+async function callAshna(key, prompt, imageBase64, mediaType) {
+  const apiRes = await fetch('https://api.ashna.ai/v1/api/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + key,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'glm-5.3-flash',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: 'data:' + mediaType + ';base64,' + imageBase64 } }
+        ]
+      }]
+    })
+  });
+  if (!apiRes.ok) {
+    const detail = await apiRes.text().catch(() => '');
+    const err = new Error('AI provider returned ' + apiRes.status + ' - ' + String(detail).slice(0, 300));
+    err.status = apiRes.status;
+    throw err;
+  }
+  const data = await apiRes.json();
+  const choice = data.choices && data.choices[0];
+  const alt = ((choice && choice.message && choice.message.content) || '').trim();
+  if (!alt) throw new Error('AI provider returned an empty response');
+  return alt;
+}
