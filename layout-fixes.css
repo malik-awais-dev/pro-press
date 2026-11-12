@@ -141,8 +141,7 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 /* NOTE: all toast notifications were removed by owner decision
-   (app.js log() is console-only now). The old mobile toast
-   repositioning block is gone with them. The queue rows, the
+   (app.js log() is console-only now). The queue rows, the
    status line, and the download button's green pulse tell the
    whole story on screen. */
 
@@ -456,14 +455,15 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   ALT SPOTLIGHT — when fresh images land in the queue, their
-   Alt buttons glow softly for ~8s: a thin rotating gradient
-   ring replaces the border, and the ✨ icon pulses gently.
-   The intent: a new user feels "there is something here to
-   try" — it whispers, it never shouts. It stops the moment
-   the user taps Alt (JS clears the flag) or once alt text
-   exists. Browsers without @property support show the ring
-   as a static gradient — still tasteful.
+   ALT SPOTLIGHT — fresh images make their Alt buttons glow for
+   ~8s. The rotating ring now carries Google's four brand colors
+   (blue #4285F4, red #EA4335, yellow #FBBC05, green #34A853)
+   so it reads as playful AI magic, and a blurred copy of the
+   same gradient (the ::after halo) breathes softly around the
+   pill as the light effect. The ring still spins slowly (3s)
+   and the ✨ icon pulses. It stops the moment the user taps
+   Alt or once alt text exists. Without @property support the
+   ring shows as a static multi-color gradient — still tasteful.
    ═══════════════════════════════════════════════════════════ */
 
 @property --pp-angle {
@@ -481,13 +481,23 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   50%      { opacity: 1;    transform: scale(1.12); }
 }
 
+/* The halo breathes independently of the spin, so the light
+   feels alive even between ring rotations. */
+@keyframes ppAltHalo {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.7; }
+}
+
 .alt-pill.alt-spotlight {
   position: relative;
   border-color: transparent; /* the rotating ring takes over */
-  background: rgba(88, 82, 114, 0.14);
+  background: rgba(255, 255, 255, 0.65);
   color: var(--text-primary, #2d2940);
+  z-index: 0; /* keep the halo behind the pill body */
+  box-shadow: 0 0 10px rgba(66, 133, 244, 0.18);
 }
 
+/* The ring: masked conic gradient in Google's four colors. */
 .alt-pill.alt-spotlight::before {
   content: '';
   position: absolute;
@@ -496,11 +506,11 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
   padding: 1.5px;
   background: conic-gradient(
     from var(--pp-angle),
-    rgba(139, 127, 212, 0.15),
-    #8B7FD4 30%,
-    #C9C1EE 50%,
-    #8B7FD4 70%,
-    rgba(139, 127, 212, 0.15)
+    #4285F4,
+    #EA4335 25%,
+    #FBBC05 50%,
+    #34A853 75%,
+    #4285F4
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -508,17 +518,42 @@ html:not(.fonts-ready) .mi { visibility: hidden; }
           mask-composite: exclude;
   animation: ppAltSpin 3s linear infinite;
   pointer-events: none;
+  z-index: 1;
+}
+
+/* The light: a blurred, slightly larger copy of the same
+   colorful gradient behind the pill — the colored glow that
+   "emits" from the ring as it turns. */
+.alt-pill.alt-spotlight::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 20px;
+  background: conic-gradient(
+    from var(--pp-angle),
+    #4285F4,
+    #EA4335 25%,
+    #FBBC05 50%,
+    #34A853 75%,
+    #4285F4
+  );
+  filter: blur(7px);
+  opacity: 0.35;
+  animation: ppAltSpin 3s linear infinite, ppAltHalo 2.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .alt-pill.alt-spotlight .mi {
   display: inline-block; /* so the scale pulse applies */
-  color: var(--secondary, #8B7FD4);
+  color: #4285F4; /* starts on Google blue; the ring paints the rest */
   animation: ppAltIconPulse 1.6s ease-in-out infinite;
 }
 
-/* Phone pills are 32px tall (16px radius) → ring radius follows */
+/* Phone pills are 32px tall (16px radius) → ring + halo follow */
 @media (max-width: 760px) {
   .alt-pill.alt-spotlight::before { border-radius: 18px; }
+  .alt-pill.alt-spotlight::after  { border-radius: 21px; inset: -6px; }
 }
 
 /* ═══════════════════════════════════════════════════════════
